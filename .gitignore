@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# user uploads (local storage for MVP)
+/public/uploads
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

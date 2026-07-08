@@ -1,26 +1,185 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Surfaces */
+  --background: #eef1f8;
+  --foreground: #0b1020;
+  --card: rgba(255, 255, 255, 0.6);
+  --card-solid: #ffffff;
+  --muted: #6b7280;
+  --muted-foreground: #94a3b8;
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.12);
+
+  /* Brand */
+  --primary: #6366f1;
+  --primary-strong: #4f46e5;
+  --primary-foreground: #ffffff;
+  --accent: #eef2ff;
+  --ring: rgba(99, 102, 241, 0.35);
+
+  /* Status */
+  --danger: #e11d48;
+  --success: #10b981;
+  --warning: #f59e0b;
+
+  /* Sidebar (dark) */
+  --sidebar: #0b1020;
+  --sidebar-accent: #151b2e;
+  --sidebar-foreground: #c7cbd9;
+  --sidebar-muted: #6b7390;
+
+  /* Geometry & effects (iOS) */
+  --radius: 1.25rem;
+  --radius-lg: 1.5rem;
+  --blur: 20px;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px -4px rgba(16, 24, 40, 0.08);
+  --shadow-md: 0 8px 24px -8px rgba(16, 24, 40, 0.12), 0 2px 8px -2px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 24px 48px -16px rgba(16, 24, 40, 0.22);
+  --glow-primary: 0 8px 24px -6px rgba(99, 102, 241, 0.35);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-sidebar: var(--sidebar);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --radius-xl: var(--radius);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at 15% 0%, rgba(99, 102, 241, 0.08), transparent 45%),
+    radial-gradient(circle at 85% 100%, rgba(139, 92, 246, 0.08), transparent 45%),
+    var(--background);
+  background-attachment: fixed;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d8dbe4;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #c2c6d2;
+  background-clip: content-box;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fade-in-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.bg-grid {
+  background-image: radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.18) 1px, transparent 0);
+  background-size: 22px 22px;
+}
+
+/* iOS / glassmorphic utilities */
+.glass {
+  background: var(--card);
+  backdrop-filter: blur(var(--blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(calc(var(--blur) + 8px)) saturate(180%);
+  -webkit-backdrop-filter: blur(calc(var(--blur) + 8px)) saturate(180%);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.hairline {
+  border-color: var(--border);
+}
+
+.ios-press {
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease, background-color 0.18s ease;
+}
+.ios-press:active {
+  transform: scale(0.97);
+}
+
+/* App-dock sidebar: shrinks icon size/spacing on short viewports so all
+   items fit without scrolling; only overflows into internal scroll on
+   extremely short windows. */
+.dock-shell {
+  --dock-icon: 3rem;
+  --dock-icon-svg: 22px;
+  --dock-gap: 0.625rem;
+  --dock-radius: 14px;
+  --dock-pad-y: 1rem;
+  --dock-sep-pad: 0.375rem;
+}
+@media (max-height: 860px) {
+  .dock-shell {
+    --dock-icon: 2.75rem;
+    --dock-icon-svg: 20px;
+    --dock-gap: 0.5rem;
+    --dock-radius: 13px;
+    --dock-pad-y: 0.75rem;
+    --dock-sep-pad: 0.25rem;
+  }
+}
+@media (max-height: 740px) {
+  .dock-shell {
+    --dock-icon: 2.5rem;
+    --dock-icon-svg: 18px;
+    --dock-gap: 0.375rem;
+    --dock-radius: 12px;
+    --dock-pad-y: 0.625rem;
+    --dock-sep-pad: 0.2rem;
+  }
+}
+@media (max-height: 640px) {
+  .dock-shell {
+    --dock-icon: 2.125rem;
+    --dock-icon-svg: 16px;
+    --dock-gap: 0.25rem;
+    --dock-radius: 11px;
+    --dock-pad-y: 0.5rem;
+    --dock-sep-pad: 0.125rem;
+  }
+}
+
+.dock-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.dock-scroll::-webkit-scrollbar {
+  display: none;
 }

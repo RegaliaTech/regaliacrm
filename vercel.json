@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/followups/worker",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/payments/reminder/worker",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/tasks/maintainer/worker",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+}
