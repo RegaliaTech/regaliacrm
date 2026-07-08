@@ -270,7 +270,7 @@ const updateUserSchema = z.object({
 
 export async function updateUser(userId: string, formData: FormData) {
   await requireRole(["ADMIN"]);
-  
+
   const parsed = updateUserSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
@@ -291,6 +291,16 @@ export async function updateUser(userId: string, formData: FormData) {
     return { error: "Email already in use" };
   }
 
+  // Prevent locking everyone out: don't let the edit demote or deactivate the
+  // last remaining active admin.
+  const wouldLoseAdmin =
+    parsed.data.role !== "ADMIN" || !parsed.data.isActive;
+  if (wouldLoseAdmin && (await isLastActiveAdmin(userId))) {
+    return {
+      error: "This is the last active admin — change another user to admin first.",
+    };
+  }
+
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -306,12 +316,43 @@ export async function updateUser(userId: string, formData: FormData) {
 }
 
 export async function deleteUser(userId: string) {
-  await requireRole(["ADMIN"]);
-  
-  await prisma.user.delete({
-    where: { id: userId },
-  });
+  const actor = await requireRole(["ADMIN"]);
+
+  if (userId === actor.id) {
+    return { error: "You can't delete your own account." };
+  }
+
+  if (await isLastActiveAdmin(userId)) {
+    return {
+      error: "This is the last active admin — assign another admin first.",
+    };
+  }
+
+  // FK-safe: every User relation is onDelete: SetNull, so the user's owned
+  // records are un-assigned rather than blocking the delete.
+  try {
+    await prisma.user.delete({ where: { id: userId } });
+  } catch {
+    return { error: "Failed to delete user. Please try again." };
+  }
 
   revalidatePath("/settings");
   return { success: true };
+}
+
+/**
+ * True if `userId` is an active ADMIN and no other active admin exists — i.e.
+ * removing/demoting them would leave the system with no admin.
+ */
+async function isLastActiveAdmin(userId: string): Promise<boolean> {
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, isActive: true },
+  });
+  if (!target || target.role !== "ADMIN" || !target.isActive) return false;
+
+  const otherActiveAdmins = await prisma.user.count({
+    where: { role: "ADMIN", isActive: true, id: { not: userId } },
+  });
+  return otherActiveAdmins === 0;
 }

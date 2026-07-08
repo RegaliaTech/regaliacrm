@@ -7,15 +7,16 @@ import EmailSettings from "./components/email-settings";
 import BusinessSettings from "./components/business-settings";
 import ProfileSettings from "./components/profile-settings";
 import SecuritySettings from "./components/security-settings";
-// import UserManagement from "./components/user-management";
-import { prisma } from "@/lib/db";import type { Role } from "@prisma/client";
-type SectionKey = "company" | "email" | "business" | "app" | "profile" | "security";
+import UserManagement from "./components/user-management";
+import { prisma } from "@/lib/db";
+import type { Role } from "@prisma/client";
+type SectionKey = "company" | "email" | "business" | "users" | "app" | "profile" | "security";
 
 const ADMIN_SECTIONS = [
   { key: "company" as SectionKey, label: "Company", icon: Building2, description: "Company information and branding" },
   { key: "email" as SectionKey, label: "Email & SMTP", icon: Mail, description: "Email configuration" },
   { key: "business" as SectionKey, label: "Business", icon: Briefcase, description: "Business defaults and preferences" },
-  // { key: "users" as SectionKey, label: "Users", icon: Users, description: "Manage users and permissions" },
+  { key: "users" as SectionKey, label: "Users", icon: Users, description: "Manage users and permissions" },
   { key: "app" as SectionKey, label: "Application", icon: Settings2, description: "System settings" },
   { key: "profile" as SectionKey, label: "My Profile", icon: UserIcon, description: "Your personal information" },
   { key: "security" as SectionKey, label: "Security", icon: Lock, description: "Password and authentication" },
@@ -71,7 +72,7 @@ export default async function SettingsPage({
         },
         orderBy: { createdAt: "desc" },
       });
-    } catch (error) {
+    } catch {
       // Database not available - use empty array
       console.warn("Database not available for user list");
     }
@@ -126,9 +127,9 @@ export default async function SettingsPage({
           {activeSection === "business" && isAdmin && (
             <BusinessSettings settings={settings} />
           )}
-          {/* {activeSection === "users" && isAdmin && (
-            <UserManagement users={users} />
-          )} */}
+          {activeSection === "users" && isAdmin && (
+            <UserManagement users={users} currentUserId={user.id} />
+          )}
           {activeSection === "app" && isAdmin && (
             <div className="space-y-6">
               <div>

@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Pencil, Trash2, UserCheck, UserX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
 import type { Role } from "@prisma/client";
 import UserFormDialog from "./user-form-dialog";
+import { deleteUser } from "../actions";
 
 type User = {
   id: string;
@@ -18,16 +20,29 @@ type User = {
   updatedAt: Date;
 };
 
-const roleTone: Record<Role, "default" | "primary" | "success" | "warning" | "danger" | "muted"> = {
+const roleTone: Record<
+  Role,
+  "default" | "primary" | "success" | "warning" | "danger" | "muted"
+> = {
   ADMIN: "warning",
   SALES: "primary",
   ACCOUNTS: "success",
   VIEWER: "muted",
 };
 
-export default function UserManagement({ users }: { users: User[] }) {
+export default function UserManagement({
+  users,
+  currentUserId,
+}: {
+  users: User[];
+  currentUserId: string;
+}) {
+  const router = useRouter();
   const [showDialog, setShowDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   const handleCreate = () => {
     setEditingUser(null);
@@ -37,6 +52,27 @@ export default function UserManagement({ users }: { users: User[] }) {
   const handleEdit = (user: User) => {
     setEditingUser(user);
     setShowDialog(true);
+  };
+
+  const handleDelete = (user: User) => {
+    if (
+      !window.confirm(
+        `Delete ${user.name}? Their owned records will be un-assigned. This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    setPendingId(user.id);
+    startTransition(async () => {
+      const result = await deleteUser(user.id);
+      setPendingId(null);
+      if (result?.error) {
+        setError(result.error);
+      } else {
+        router.refresh();
+      }
+    });
   };
 
   return (
@@ -54,6 +90,12 @@ export default function UserManagement({ users }: { users: User[] }) {
           Add User
         </Button>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* Users List */}
       <div className="glass rounded-3xl shadow-sm overflow-hidden">
@@ -88,9 +130,7 @@ export default function UserManagement({ users }: { users: User[] }) {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <Badge tone={roleTone[user.role] as any}>
-                      {user.role}
-                    </Badge>
+                    <Badge tone={roleTone[user.role]}>{user.role}</Badge>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {user.isActive ? (
@@ -112,19 +152,27 @@ export default function UserManagement({ users }: { users: User[] }) {
                     <button
                       onClick={() => handleEdit(user)}
                       className="text-[var(--primary)] hover:text-[var(--primary-strong)] mr-4"
+                      aria-label={`Edit ${user.name}`}
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
-                    <button className="text-slate-400 hover:text-red-600">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {user.id !== currentUserId && (
+                      <button
+                        onClick={() => handleDelete(user)}
+                        disabled={isPending && pendingId === user.id}
+                        className="text-slate-400 hover:text-red-600 disabled:opacity-40"
+                        aria-label={`Delete ${user.name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
               {users.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                    No users found. Click "Add User" to create one.
+                    No users found. Click &ldquo;Add User&rdquo; to create one.
                   </td>
                 </tr>
               )}
