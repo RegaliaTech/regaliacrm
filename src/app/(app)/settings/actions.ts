@@ -127,7 +127,14 @@ const profileSchema = z.object({
 
 export async function updateProfile(formData: FormData) {
   const user = await requireUser();
-  
+
+  if (user.id === "preview-user") {
+    return {
+      error:
+        "This is a preview session with no real account — profile changes can't be saved.",
+    };
+  }
+
   const parsed = profileSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
@@ -173,7 +180,14 @@ const passwordSchema = z.object({
 
 export async function changePassword(formData: FormData) {
   const user = await requireUser();
-  
+
+  if (user.id === "preview-user") {
+    return {
+      error:
+        "This is a preview session with no real account — password changes can't be saved.",
+    };
+  }
+
   const parsed = passwordSchema.safeParse({
     currentPassword: formData.get("currentPassword"),
     newPassword: formData.get("newPassword"),

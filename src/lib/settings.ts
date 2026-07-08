@@ -112,14 +112,18 @@ export async function updateSettings(
   userId?: string
 ): Promise<Settings> {
   const settings = await getSettings();
-  
+
+  // The dev-only preview auth bypass returns a synthetic user id that has no
+  // matching User row, so it can't be written as a foreign key.
+  const updatedById = userId === "preview-user" ? null : userId;
+
   const updated = await prisma.settings.update({
     where: { id: settings.id },
     data: {
       ...data,
-      updatedById: userId,
+      updatedById,
     },
   });
-  
+
   return normalizeSettings(updated);
 }
