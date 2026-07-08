@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useActionState } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Loader2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import type { ProductView } from "@/lib/products";
 import {
   saveProduct,
@@ -13,7 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Button, buttonClasses } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { FormError } from "@/components/ui/form-error";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ImageUploader,
@@ -66,11 +68,7 @@ export function ProductForm({ product }: { product?: ProductView }) {
         value={images[0]?.url ?? ""}
       />
 
-      {state.error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {state.error}
-        </div>
-      )}
+      <FormError error={state.error} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -392,10 +390,9 @@ export function ProductForm({ product }: { product?: ProductView }) {
           </Card>
 
           <div className="flex gap-2">
-            <Button type="submit" disabled={pending} className="flex-1">
-              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+            <SubmitButton pending={pending} className="flex-1">
               {product ? "Save changes" : "Create product"}
-            </Button>
+            </SubmitButton>
             <Link
               href={product ? `/products/${product.id}` : "/products"}
               className={buttonClasses("outline", "md")}

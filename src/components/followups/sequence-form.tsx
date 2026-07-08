@@ -10,7 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Button, buttonClasses } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { FormError } from "@/components/ui/form-error";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function SequenceForm({
@@ -31,11 +33,7 @@ export function SequenceForm({
       <input type="hidden" name="useAi" value={useAi ? "true" : "false"} />
       <input type="hidden" name="stopOnReply" value={stopOnReply ? "true" : "false"} />
 
-      {state.error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {state.error}
-        </div>
-      )}
+      <FormError error={state.error} />
 
       <Card>
         <CardHeader>
@@ -108,9 +106,9 @@ export function SequenceForm({
       </Card>
 
       <div className="flex gap-2">
-        <Button type="submit" disabled={pending}>
+        <SubmitButton pending={pending}>
           {pending ? "Creating..." : "Create sequence"}
-        </Button>
+        </SubmitButton>
         <Link href="/followups/sequences" className={buttonClasses("ghost", "md")}>
           Cancel
         </Link>

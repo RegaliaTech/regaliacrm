@@ -12,7 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Button, buttonClasses } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { FormError } from "@/components/ui/form-error";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -79,11 +81,7 @@ export function BulkEmailForm({
       ))}
       <input type="hidden" name="useAi" value={useAi ? "true" : "false"} />
 
-      {state.error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {state.error}
-        </div>
-      )}
+      <FormError error={state.error} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -201,9 +199,13 @@ export function BulkEmailForm({
         </div>
 
         <div className="space-y-3">
-          <Button type="submit" disabled={pending || selected.size === 0} className="w-full">
+          <SubmitButton
+            pending={pending}
+            disabled={selected.size === 0}
+            className="w-full"
+          >
             {pending ? "Creating..." : `Create campaign (${selected.size})`}
-          </Button>
+          </SubmitButton>
           <Link href="/emails/bulk" className={`${buttonClasses("ghost", "md")} w-full`}>
             Cancel
           </Link>

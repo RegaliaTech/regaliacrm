@@ -6,6 +6,8 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { StatCard } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { buttonClasses } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RecordPaymentForm } from "@/components/payments/record-payment-form";
@@ -29,14 +31,10 @@ export default async function PaymentsPage() {
 
   return (
     <div className="animate-in mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
-          Payment reminders
-        </h1>
-        <p className="text-sm text-[var(--muted)]">
-          Outstanding balances on sent and accepted quotations.
-        </p>
-      </div>
+      <PageHeader
+        title="Payment reminders"
+        description="Outstanding balances on sent and accepted quotations."
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
@@ -56,14 +54,10 @@ export default async function PaymentsPage() {
       </div>
 
       {invoices.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[var(--border-strong)] bg-[var(--card)] px-6 py-16 text-center backdrop-blur-xl shadow-[var(--shadow-sm)]">
-          <p className="text-sm font-medium text-slate-900">
-            No outstanding balances
-          </p>
-          <p className="text-sm text-[var(--muted)]">
-            All sent and accepted quotations are fully paid.
-          </p>
-        </div>
+        <EmptyState
+          title="No outstanding balances"
+          description="All sent and accepted quotations are fully paid."
+        />
       ) : (
         <div className="space-y-3">
           {invoices.map((inv) => (

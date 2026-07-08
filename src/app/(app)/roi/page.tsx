@@ -7,6 +7,8 @@ import { productKindLabel } from "@/lib/status";
 import { StatCard } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 
 function monthLabel(year: number, month: number): string {
   return new Date(year, month, 1).toLocaleDateString("en-US", {
@@ -43,14 +45,10 @@ export default async function RoiPage({
 
   return (
     <div className="animate-in mx-auto max-w-6xl space-y-6">
-      <div>
-        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
-          ROI by product
-        </h1>
-        <p className="text-sm text-[var(--muted)]">
-          Revenue booked vs. cost basis for each model, photographer, or rental item.
-        </p>
-      </div>
+      <PageHeader
+        title="ROI by product"
+        description="Revenue booked vs. cost basis for each model, photographer, or rental item."
+      />
 
       <div className="glass inline-flex items-center gap-1 rounded-2xl p-1">
         <Link
@@ -95,14 +93,10 @@ export default async function RoiPage({
       </div>
 
       {rows.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[var(--border-strong)] bg-[var(--card)] px-6 py-16 text-center backdrop-blur-xl shadow-[var(--shadow-sm)]">
-          <p className="text-sm font-medium text-slate-900">
-            No bookings in this period
-          </p>
-          <p className="text-sm text-[var(--muted)]">
-            ROI is computed from accepted quotations that include products.
-          </p>
-        </div>
+        <EmptyState
+          title="No bookings in this period"
+          description="ROI is computed from accepted quotations that include products."
+        />
       ) : (
         <Table>
           <THead>

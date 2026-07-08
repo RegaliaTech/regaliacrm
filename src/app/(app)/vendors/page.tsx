@@ -5,6 +5,8 @@ import { getVendors } from "@/lib/vendors";
 import { buttonClasses } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 
 export default async function VendorsPage() {
   const user = await requireUser();
@@ -13,37 +15,34 @@ export default async function VendorsPage() {
 
   return (
     <div className="animate-in mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
-            Vendors
-          </h1>
-          <p className="text-sm text-[var(--muted)]">
-            Suppliers, purchase receipts, and stock on hand.
-          </p>
-        </div>
-        {canWrite && (
-          <Link href="/vendors/new" className={buttonClasses("primary", "md")}>
-            <Plus className="h-4 w-4" /> Add vendor
-          </Link>
-        )}
-      </div>
-
-      {vendors.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[var(--border-strong)] bg-[var(--card)] px-6 py-16 text-center backdrop-blur-xl shadow-[var(--shadow-sm)]">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-            <Truck className="h-6 w-6" />
-          </div>
-          <p className="text-sm font-medium text-slate-900">No vendors yet</p>
-          <p className="text-sm text-[var(--muted)]">
-            Add a vendor to start tracking receipts and stock.
-          </p>
-          {canWrite && (
-            <Link href="/vendors/new" className={buttonClasses("primary", "sm", "mt-2")}>
+      <PageHeader
+        title="Vendors"
+        description="Suppliers, purchase receipts, and stock on hand."
+        action={
+          canWrite && (
+            <Link href="/vendors/new" className={buttonClasses("primary", "md")}>
               <Plus className="h-4 w-4" /> Add vendor
             </Link>
-          )}
-        </div>
+          )
+        }
+      />
+
+      {vendors.length === 0 ? (
+        <EmptyState
+          icon={Truck}
+          title="No vendors yet"
+          description="Add a vendor to start tracking receipts and stock."
+          action={
+            canWrite && (
+              <Link
+                href="/vendors/new"
+                className={buttonClasses("primary", "sm")}
+              >
+                <Plus className="h-4 w-4" /> Add vendor
+              </Link>
+            )
+          }
+        />
       ) : (
         <Table>
           <THead>

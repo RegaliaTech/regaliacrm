@@ -2,7 +2,6 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
 import type { ExpenseView } from "@/lib/expenses";
 import {
   saveExpense,
@@ -12,7 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Button, buttonClasses } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { FormError } from "@/components/ui/form-error";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 function toDateInputValue(d: Date): string {
@@ -29,11 +30,7 @@ export function ExpenseForm({ expense }: { expense?: ExpenseView }) {
     <form action={formAction} className="space-y-6">
       {expense && <input type="hidden" name="id" value={expense.id} />}
 
-      {state.error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {state.error}
-        </div>
-      )}
+      <FormError error={state.error} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -121,10 +118,9 @@ export function ExpenseForm({ expense }: { expense?: ExpenseView }) {
               <CardTitle>Save</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 pt-0">
-              <Button type="submit" className="w-full" disabled={pending}>
-                {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              <SubmitButton pending={pending} className="w-full">
                 {expense ? "Save changes" : "Add expense"}
-              </Button>
+              </SubmitButton>
               <Link
                 href="/expenses"
                 className={buttonClasses("outline", "md", "w-full")}

@@ -8,6 +8,7 @@ import { safeQuery } from "@/lib/safe-query";
 import { formatCurrency } from "@/lib/utils";
 import { StatCard } from "@/components/stat-card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
 import { buttonClasses } from "@/components/ui/button";
 import { setCommissionRate } from "./actions";
@@ -74,14 +75,10 @@ export default async function CommissionsPage({
 
   return (
     <div className="animate-in mx-auto max-w-6xl space-y-6">
-      <div>
-        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
-          Commissions
-        </h1>
-        <p className="text-sm text-[var(--muted)]">
-          Sales commission owed per rep, based on accepted quotations.
-        </p>
-      </div>
+      <PageHeader
+        title="Commissions"
+        description="Sales commission owed per rep, based on accepted quotations."
+      />
 
       <div className="glass inline-flex items-center gap-1 rounded-2xl p-1">
         <Link

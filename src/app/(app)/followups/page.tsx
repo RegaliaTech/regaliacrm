@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus, Clock, Calendar, CheckCircle, XCircle, AlertCircle, Ban, Sparkles } from "lucide-react";
+import { Plus, Clock, CheckCircle, XCircle, AlertCircle, Ban, Sparkles } from "lucide-react";
 import type { FollowUpStatus } from "@prisma/client";
 import { requireUser, can, WRITE_ROLES, ADMIN_ROLES } from "@/lib/rbac";
 import { listFollowUps } from "@/lib/followups";
@@ -10,6 +10,10 @@ import { buttonClasses } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FormNotice } from "@/components/ui/form-error";
+import { PageHeader } from "@/components/ui/page-header";
+import { SearchInput } from "@/components/ui/search-input";
 
 type TabKey = "all" | "scheduled" | "sent" | "cancelled" | "failed";
 
@@ -117,50 +121,51 @@ export default async function FollowUpsPage({
 
   return (
     <div className="animate-in mx-auto max-w-7xl space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
+      <PageHeader
+        title={
+          <>
             <Clock className="inline h-7 w-7 text-slate-600" /> Follow-ups
-          </h1>
-          <p className="text-sm text-[var(--muted)]">
-            Schedule and manage automated customer follow-ups.
-          </p>
-        </div>
-        {canWrite && (
-          <div className="flex gap-2">
-            {canRunMaintainer && (
-              <form action={handleRunMaintainer}>
-                <button
-                  type="submit"
-                  className={buttonClasses("ghost", "md")}
-                  title="Scan for customers/quotations with no follow-up pending and auto-create one"
-                >
-                  <Sparkles className="h-4 w-4" /> Run AI maintainer
-                </button>
-              </form>
-            )}
-            <Link
-              href="/followups/sequences"
-              className={buttonClasses("ghost", "md")}
-            >
-              AI Sequences
-            </Link>
-            <Link href="/followups/new" className={buttonClasses("primary", "md")}>
-              <Plus className="h-4 w-4" /> Schedule follow-up
-            </Link>
-          </div>
-        )}
-      </div>
+          </>
+        }
+        description="Schedule and manage automated customer follow-ups."
+        action={
+          canWrite && (
+            <div className="flex gap-2">
+              {canRunMaintainer && (
+                <form action={handleRunMaintainer}>
+                  <button
+                    type="submit"
+                    className={buttonClasses("ghost", "md")}
+                    title="Scan for customers/quotations with no follow-up pending and auto-create one"
+                  >
+                    <Sparkles className="h-4 w-4" /> Run AI maintainer
+                  </button>
+                </form>
+              )}
+              <Link
+                href="/followups/sequences"
+                className={buttonClasses("ghost", "md")}
+              >
+                AI Sequences
+              </Link>
+              <Link
+                href="/followups/new"
+                className={buttonClasses("primary", "md")}
+              >
+                <Plus className="h-4 w-4" /> Schedule follow-up
+              </Link>
+            </div>
+          )
+        }
+      />
 
       {maintainerResult && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          AI maintainer: {maintainerResult}
-        </div>
+        <FormNotice tone="success">AI maintainer: {maintainerResult}</FormNotice>
       )}
       {maintainerError && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <FormNotice tone="error">
           AI maintainer failed: {maintainerError}
-        </div>
+        </FormNotice>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -200,49 +205,43 @@ export default async function FollowUpsPage({
           })}
         </div>
 
-        <form className="flex-1" action="/followups" method="get">
-          {tab && <input type="hidden" name="tab" value={tab} />}
-          <div className="relative max-w-xs">
-            <input
-              type="search"
-              name="q"
-              defaultValue={query}
-              placeholder="Search follow-ups..."
-              className="h-9 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] pl-9 pr-3 text-sm text-slate-900 shadow-[var(--shadow-sm)] backdrop-blur-xl placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10"
-            />
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-              <Clock className="h-4 w-4 text-slate-400" />
-            </div>
-          </div>
-        </form>
+        <SearchInput
+          action="/followups"
+          defaultValue={query}
+          placeholder="Search follow-ups..."
+          hidden={tab ? { tab } : undefined}
+          className="max-w-xs flex-1"
+          inputClassName="h-9 w-full"
+        />
       </div>
 
       {followUps.length === 0 ? (
-        <div className="flex min-h-[400px] flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--border)] bg-[var(--card)] p-12 text-center backdrop-blur-xl shadow-[var(--shadow-sm)]">
-          <div className="rounded-full bg-slate-100 p-4">
-            <Clock className="h-8 w-8 text-slate-400" />
-          </div>
-          <h3 className="mt-4 text-lg font-medium text-slate-900">
-            {query
+        <EmptyState
+          icon={Clock}
+          title={
+            query
               ? "No follow-ups found"
               : activeTab === "all"
                 ? "No follow-ups yet"
-                : `No ${activeTab} follow-ups`}
-          </h3>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {query
+                : `No ${activeTab} follow-ups`
+          }
+          description={
+            query
               ? "Try adjusting your search"
-              : "Schedule your first follow-up to get started"}
-          </p>
-          {canWrite && !query && (
-            <Link
-              href="/followups/new"
-              className={cn(buttonClasses("primary", "md"), "mt-6")}
-            >
-              <Plus className="h-4 w-4" /> Schedule follow-up
-            </Link>
-          )}
-        </div>
+              : "Schedule your first follow-up to get started"
+          }
+          action={
+            canWrite &&
+            !query && (
+              <Link
+                href="/followups/new"
+                className={buttonClasses("primary", "md")}
+              >
+                <Plus className="h-4 w-4" /> Schedule follow-up
+              </Link>
+            )
+          }
+        />
       ) : (
         <div className="glass overflow-hidden rounded-3xl">
           <Table>

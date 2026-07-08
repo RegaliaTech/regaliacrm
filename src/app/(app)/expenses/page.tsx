@@ -15,6 +15,8 @@ import { buttonClasses } from "@/components/ui/button";
 import { StatCard } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { expenseCategoryLabel, expenseCategoryTone } from "@/lib/status";
 
 function monthLabel(year: number, month: number): string {
@@ -57,21 +59,20 @@ export default async function ExpensesPage({
   return (
     <div className="animate-in mx-auto max-w-7xl space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
-            Expenses &amp; PNL
-          </h1>
-          <p className="text-sm text-[var(--muted)]">
-            Track business expenses and see profit vs. revenue by month.
-          </p>
-        </div>
-        {canWrite && (
-          <Link href="/expenses/new" className={buttonClasses("primary", "md")}>
-            <Plus className="h-4 w-4" /> Add expense
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        title="Expenses & PNL"
+        description="Track business expenses and see profit vs. revenue by month."
+        action={
+          canWrite && (
+            <Link
+              href="/expenses/new"
+              className={buttonClasses("primary", "md")}
+            >
+              <Plus className="h-4 w-4" /> Add expense
+            </Link>
+          )
+        }
+      />
 
       {/* Period selector */}
       <div className="glass inline-flex items-center gap-1 rounded-2xl p-1">
@@ -119,25 +120,21 @@ export default async function ExpensesPage({
 
       {/* Expense list */}
       {expenses.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[var(--border-strong)] bg-[var(--card)] px-6 py-16 text-center backdrop-blur-xl shadow-[var(--shadow-sm)]">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-            <Receipt className="h-6 w-6" />
-          </div>
-          <p className="text-sm font-medium text-slate-900">
-            No expenses recorded for this period
-          </p>
-          <p className="text-sm text-[var(--muted)]">
-            Add an expense to start tracking PNL.
-          </p>
-          {canWrite && (
-            <Link
-              href="/expenses/new"
-              className={buttonClasses("primary", "sm", "mt-2")}
-            >
-              <Plus className="h-4 w-4" /> Add expense
-            </Link>
-          )}
-        </div>
+        <EmptyState
+          icon={Receipt}
+          title="No expenses recorded for this period"
+          description="Add an expense to start tracking PNL."
+          action={
+            canWrite && (
+              <Link
+                href="/expenses/new"
+                className={buttonClasses("primary", "sm")}
+              >
+                <Plus className="h-4 w-4" /> Add expense
+              </Link>
+            )
+          }
+        />
       ) : (
         <Table>
           <THead>

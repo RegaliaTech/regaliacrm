@@ -13,6 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Button, buttonClasses } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { FormError } from "@/components/ui/form-error";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type EmailFormProps = {
@@ -88,11 +90,7 @@ export function EmailForm({
   return (
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="aiGenerated" value={aiGenerated ? "true" : "false"} />
-      {state.error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {state.error}
-        </div>
-      )}
+      <FormError error={state.error} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -250,17 +248,15 @@ Regalia Team"
               <CardTitle>Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 pt-0">
-              <Button type="submit" name="action" value="send" className="w-full" disabled={pending}>
-                {pending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Sending...
-                  </>
-                ) : (
-                  "Send email"
-                )}
-              </Button>
-              <Button
-                type="submit"
+              <SubmitButton
+                pending={pending}
+                name="action"
+                value="send"
+                className="w-full"
+              >
+                {pending ? "Sending..." : "Send email"}
+              </SubmitButton>
+              <SubmitButton
                 name="action"
                 value="draft"
                 variant="outline"
@@ -268,7 +264,7 @@ Regalia Team"
                 disabled={pending}
               >
                 Save as draft
-              </Button>
+              </SubmitButton>
               <Link
                 href="/emails"
                 className={buttonClasses("outline", "md", "w-full")}

@@ -1,8 +1,11 @@
 import Link from "next/link";
-import { Package, Plus, Search } from "lucide-react";
+import { Package, Plus } from "lucide-react";
 import { requireUser, can, WRITE_ROLES } from "@/lib/rbac";
 import { getProducts } from "@/lib/products";
 import { buttonClasses } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { SearchInput } from "@/components/ui/search-input";
 import { ProductCard } from "@/components/products/product-card";
 import { cn } from "@/lib/utils";
 import type { ProductKind } from "@prisma/client";
@@ -55,21 +58,20 @@ export default async function ProductsPage({
   return (
     <div className="animate-in mx-auto max-w-7xl space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
-            Products
-          </h1>
-          <p className="text-sm text-[var(--muted)]">
-            Browse models, hosts, photographers, rental equipment, and bespoke creations.
-          </p>
-        </div>
-        {canWrite && (
-          <Link href="/products/new" className={buttonClasses("primary", "md")}>
-            <Plus className="h-4 w-4" /> New product
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        title="Products"
+        description="Browse models, hosts, photographers, rental equipment, and bespoke creations."
+        action={
+          canWrite && (
+            <Link
+              href="/products/new"
+              className={buttonClasses("primary", "md")}
+            >
+              <Plus className="h-4 w-4" /> New product
+            </Link>
+          )
+        }
+      />
 
       {/* Tabs + search */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -107,43 +109,35 @@ export default async function ProductsPage({
           })}
         </div>
 
-        <form className="relative" action="/products" method="get">
-          {activeTab !== "all" && (
-            <input type="hidden" name="tab" value={activeTab} />
-          )}
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            name="q"
-            defaultValue={query}
-            placeholder="Search products…"
-            className="h-10 w-64 rounded-2xl border border-[var(--border)] bg-[var(--card)] pl-9 pr-3 text-sm shadow-[var(--shadow-sm)] outline-none backdrop-blur-xl transition-all placeholder:text-slate-400 hover:bg-white/80 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
-          />
-        </form>
+        <SearchInput
+          action="/products"
+          defaultValue={query}
+          placeholder="Search products…"
+          hidden={activeTab !== "all" ? { tab: activeTab } : undefined}
+        />
       </div>
 
       {/* Grid */}
       {products.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[var(--border-strong)] bg-[var(--card)] px-6 py-16 text-center backdrop-blur-xl shadow-[var(--shadow-sm)]">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-            <Package className="h-6 w-6" />
-          </div>
-          <p className="text-sm font-medium text-slate-900">
-            No products found
-          </p>
-          <p className="text-sm text-[var(--muted)]">
-            {query
+        <EmptyState
+          icon={Package}
+          title="No products found"
+          description={
+            query
               ? "Try a different search term."
-              : "Add your first product to get started."}
-          </p>
-          {canWrite && (
-            <Link
-              href="/products/new"
-              className={buttonClasses("primary", "sm", "mt-2")}
-            >
-              <Plus className="h-4 w-4" /> New product
-            </Link>
-          )}
-        </div>
+              : "Add your first product to get started."
+          }
+          action={
+            canWrite && (
+              <Link
+                href="/products/new"
+                className={buttonClasses("primary", "sm")}
+              >
+                <Plus className="h-4 w-4" /> New product
+              </Link>
+            )
+          }
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {products.map((p) => (

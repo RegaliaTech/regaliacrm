@@ -1,8 +1,11 @@
 import Link from "next/link";
-import { Plus, Search, FileText } from "lucide-react";
+import { Plus, FileText } from "lucide-react";
 import { requireUser, can, WRITE_ROLES } from "@/lib/rbac";
 import { getQuotations, getQuotationsByStatus } from "@/lib/quotations";
 import { buttonClasses } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { SearchInput } from "@/components/ui/search-input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { quotationStatusTone } from "@/lib/status";
@@ -64,24 +67,20 @@ export default async function QuotationsPage({
   return (
     <div className="animate-in mx-auto max-w-7xl space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
-            Quotations
-          </h1>
-          <p className="text-sm text-[var(--muted)]">
-            Create and manage customer quotations and proposals.
-          </p>
-        </div>
-        {canWrite && (
-          <Link
-            href="/quotations/new"
-            className={buttonClasses("primary", "md")}
-          >
-            <Plus className="h-4 w-4" /> New quotation
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        title="Quotations"
+        description="Create and manage customer quotations and proposals."
+        action={
+          canWrite && (
+            <Link
+              href="/quotations/new"
+              className={buttonClasses("primary", "md")}
+            >
+              <Plus className="h-4 w-4" /> New quotation
+            </Link>
+          )
+        }
+      />
 
       {/* Tabs + search */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -121,43 +120,35 @@ export default async function QuotationsPage({
           })}
         </div>
 
-        <form className="relative" action="/quotations" method="get">
-          {activeTab !== "all" && (
-            <input type="hidden" name="tab" value={activeTab} />
-          )}
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            name="q"
-            defaultValue={query}
-            placeholder="Search quotations…"
-            className="h-10 w-64 rounded-2xl border border-[var(--border)] bg-[var(--card)] pl-9 pr-3 text-sm shadow-[var(--shadow-sm)] outline-none backdrop-blur-xl transition-all placeholder:text-slate-400 hover:bg-white/80 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
-          />
-        </form>
+        <SearchInput
+          action="/quotations"
+          defaultValue={query}
+          placeholder="Search quotations…"
+          hidden={activeTab !== "all" ? { tab: activeTab } : undefined}
+        />
       </div>
 
       {/* Table or empty state */}
       {quotations.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[var(--border-strong)] bg-[var(--card)] px-6 py-16 text-center backdrop-blur-xl shadow-[var(--shadow-sm)]">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-            <FileText className="h-6 w-6" />
-          </div>
-          <p className="text-sm font-medium text-slate-900">
-            No quotations found
-          </p>
-          <p className="text-sm text-[var(--muted)]">
-            {query
+        <EmptyState
+          icon={FileText}
+          title="No quotations found"
+          description={
+            query
               ? "Try a different search term."
-              : "Create your first quotation to get started."}
-          </p>
-          {canWrite && (
-            <Link
-              href="/quotations/new"
-              className={buttonClasses("primary", "sm", "mt-2")}
-            >
-              <Plus className="h-4 w-4" /> New quotation
-            </Link>
-          )}
-        </div>
+              : "Create your first quotation to get started."
+          }
+          action={
+            canWrite && (
+              <Link
+                href="/quotations/new"
+                className={buttonClasses("primary", "sm")}
+              >
+                <Plus className="h-4 w-4" /> New quotation
+              </Link>
+            )
+          }
+        />
       ) : (
         <div className="glass overflow-hidden rounded-3xl">
           <table className="w-full text-sm">

@@ -1,6 +1,9 @@
+import { Suspense } from "react";
 import { requireUser } from "@/lib/rbac";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
+import { ToastProvider } from "@/components/ui/toast";
+import { FlashToasts } from "@/components/ui/flash-toasts";
 
 export default async function AppLayout({
   children,
@@ -18,7 +21,14 @@ export default async function AppLayout({
       <Sidebar role={user.role} />
       <div className="relative flex flex-1 flex-col overflow-hidden">
         <Topbar user={user} />
-        <main className="flex-1 overflow-y-auto px-6 py-7">{children}</main>
+        <main className="flex-1 overflow-y-auto px-6 py-7">
+          <ToastProvider>
+            <Suspense fallback={null}>
+              <FlashToasts />
+            </Suspense>
+            {children}
+          </ToastProvider>
+        </main>
       </div>
     </div>
   );

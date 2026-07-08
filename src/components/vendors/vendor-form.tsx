@@ -2,13 +2,14 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
 import type { VendorDetail } from "@/lib/vendors";
 import { saveVendor, type VendorFormState } from "@/app/(app)/vendors/actions";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Button, buttonClasses } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { FormError } from "@/components/ui/form-error";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function VendorForm({ vendor }: { vendor?: VendorDetail }) {
@@ -21,11 +22,7 @@ export function VendorForm({ vendor }: { vendor?: VendorDetail }) {
     <form action={formAction} className="space-y-6">
       {vendor && <input type="hidden" name="id" value={vendor.id} />}
 
-      {state.error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {state.error}
-        </div>
-      )}
+      <FormError error={state.error} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -105,10 +102,9 @@ export function VendorForm({ vendor }: { vendor?: VendorDetail }) {
               <CardTitle>Save</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 pt-0">
-              <Button type="submit" className="w-full" disabled={pending}>
-                {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              <SubmitButton pending={pending} className="w-full">
                 {vendor ? "Save changes" : "Add vendor"}
-              </Button>
+              </SubmitButton>
               <Link
                 href="/vendors"
                 className={buttonClasses("outline", "md", "w-full")}

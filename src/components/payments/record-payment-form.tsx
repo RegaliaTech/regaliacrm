@@ -1,10 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
-import { Loader2 } from "lucide-react";
 import { recordPayment, type PaymentFormState } from "@/app/(app)/payments/actions";
 import { Input } from "@/components/ui/input";
-import { buttonClasses } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -40,14 +39,9 @@ export function RecordPaymentForm({ quotationId }: { quotationId: string }) {
         placeholder="Method"
         className="h-8 w-24 text-sm"
       />
-      <button
-        type="submit"
-        disabled={pending}
-        className={buttonClasses("outline", "sm")}
-      >
-        {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      <SubmitButton pending={pending} variant="outline" size="sm">
         Record
-      </button>
+      </SubmitButton>
       {state.error && (
         <span className="w-full text-xs text-[var(--danger)]">{state.error}</span>
       )}

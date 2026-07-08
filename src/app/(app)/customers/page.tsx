@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Search, Users } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import type { CustomerStatus } from "@prisma/client";
 import { requireUser, can, WRITE_ROLES } from "@/lib/rbac";
 import { getCustomers } from "@/lib/customers";
@@ -10,6 +10,9 @@ import { buttonClasses } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { SearchInput } from "@/components/ui/search-input";
 
 type TabKey = "all" | "lead" | "active" | "inactive" | "churned";
 
@@ -58,21 +61,20 @@ export default async function CustomersPage({
 
   return (
     <div className="animate-in mx-auto max-w-7xl space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">
-            Customers
-          </h1>
-          <p className="text-sm text-[var(--muted)]">
-            Manage leads and active accounts in one place.
-          </p>
-        </div>
-        {canWrite && (
-          <Link href="/customers/new" className={buttonClasses("primary", "md")}>
-            <Plus className="h-4 w-4" /> New customer
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        title="Customers"
+        description="Manage leads and active accounts in one place."
+        action={
+          canWrite && (
+            <Link
+              href="/customers/new"
+              className={buttonClasses("primary", "md")}
+            >
+              <Plus className="h-4 w-4" /> New customer
+            </Link>
+          )
+        }
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="glass flex flex-wrap gap-1 rounded-2xl p-1">
@@ -109,40 +111,34 @@ export default async function CustomersPage({
           })}
         </div>
 
-        <form className="relative" action="/customers" method="get">
-          {activeTab !== "all" && (
-            <input type="hidden" name="tab" value={activeTab} />
-          )}
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            name="q"
-            defaultValue={query}
-            placeholder="Search customers…"
-            className="h-10 w-64 rounded-2xl border border-[var(--border)] bg-[var(--card)] pl-9 pr-3 text-sm shadow-[var(--shadow-sm)] outline-none backdrop-blur-xl transition-all placeholder:text-slate-400 hover:bg-white/80 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
-          />
-        </form>
+        <SearchInput
+          action="/customers"
+          defaultValue={query}
+          placeholder="Search customers…"
+          hidden={activeTab !== "all" ? { tab: activeTab } : undefined}
+        />
       </div>
 
       {customers.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-[var(--border-strong)] bg-[var(--card)] px-6 py-16 text-center backdrop-blur-xl shadow-[var(--shadow-sm)]">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-            <Users className="h-6 w-6" />
-          </div>
-          <p className="text-sm font-medium text-slate-900">No customers found</p>
-          <p className="text-sm text-[var(--muted)]">
-            {query
+        <EmptyState
+          icon={Users}
+          title="No customers found"
+          description={
+            query
               ? "Try a different search term."
-              : "Add your first customer to get started."}
-          </p>
-          {canWrite && (
-            <Link
-              href="/customers/new"
-              className={buttonClasses("primary", "sm", "mt-2")}
-            >
-              <Plus className="h-4 w-4" /> New customer
-            </Link>
-          )}
-        </div>
+              : "Add your first customer to get started."
+          }
+          action={
+            canWrite && (
+              <Link
+                href="/customers/new"
+                className={buttonClasses("primary", "sm")}
+              >
+                <Plus className="h-4 w-4" /> New customer
+              </Link>
+            )
+          }
+        />
       ) : (
         <div className="glass overflow-hidden rounded-3xl">
           <Table>
@@ -160,7 +156,12 @@ export default async function CustomersPage({
               {customers.map((c) => (
                 <TR key={c.id}>
                   <TD>
-                    <span className="block font-medium text-slate-900">{c.name}</span>
+                    <Link
+                      href={`/customers/${c.id}`}
+                      className="block font-medium text-slate-900 hover:text-[var(--primary)] hover:underline"
+                    >
+                      {c.name}
+                    </Link>
                     <span className="text-xs text-[var(--muted)]">{c.company ?? "—"}</span>
                   </TD>
                   <TD>
