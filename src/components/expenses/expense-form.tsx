@@ -78,14 +78,6 @@ export function ExpenseForm({ expense }: { expense?: ExpenseView }) {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="currency">Currency</Label>
-                  <Input
-                    id="currency"
-                    name="currency"
-                    defaultValue={expense?.currency ?? "AED"}
-                  />
-                </div>
-                <div>
                   <Label htmlFor="incurredAt">Date incurred</Label>
                   <Input
                     id="incurredAt"
