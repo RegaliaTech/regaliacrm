@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { Decimal } from "@prisma/client/runtime/library";
+import type { Settings as PrismaSettings } from "@prisma/client";
 
 // Type for Settings - will be replaced by Prisma type after migration
 type Settings = {
@@ -55,16 +55,15 @@ const getDefaultSettings = (): Settings => ({
   updatedById: null,
 });
 
-function normalizeSettings(settings: any): Settings {
+// Convert the Prisma row (which carries Decimal fields) into a plain,
+// serializable object safe to pass to Client Components. `Number()` handles
+// both Decimal and already-numeric values — unlike `instanceof Decimal`, which
+// can silently fail across module boundaries under Turbopack.
+function normalizeSettings(settings: PrismaSettings): Settings {
   return {
     ...settings,
-    defaultTaxRate: settings.defaultTaxRate instanceof Decimal
-      ? settings.defaultTaxRate.toNumber()
-      : settings.defaultTaxRate,
-    defaultCommissionRate:
-      settings.defaultCommissionRate instanceof Decimal
-        ? settings.defaultCommissionRate.toNumber()
-        : (settings.defaultCommissionRate ?? 10),
+    defaultTaxRate: Number(settings.defaultTaxRate),
+    defaultCommissionRate: Number(settings.defaultCommissionRate ?? 10),
   };
 }
 
@@ -98,7 +97,7 @@ export async function getSettings(): Promise<Settings> {
     }
     
     return normalizeSettings(settings);
-  } catch (error) {
+  } catch {
     // Settings table doesn't exist yet - return mock defaults
     console.warn("Settings table not found. Please run: npx prisma migrate dev");
     return getDefaultSettings();
