@@ -8,6 +8,7 @@ import type { Role } from "@prisma/client";
 import { NAV_GROUPS, NAV_ITEMS } from "@/components/nav-items";
 import { cn } from "@/lib/utils";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import { AssistantPanel } from "@/components/assistant/assistant-panel";
 
 type TooltipState = { label: string; top: number; left: number } | null;
 
@@ -29,6 +30,7 @@ function DockTooltip({ tooltip }: { tooltip: TooltipState }) {
 export function Sidebar({ role }: { role: Role }) {
   const pathname = usePathname();
   const [tooltip, setTooltip] = useState<TooltipState>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const items = NAV_ITEMS.filter(
     (item) => !item.roles || item.roles.includes(role),
   );
@@ -126,6 +128,8 @@ export function Sidebar({ role }: { role: Role }) {
 
         {/* AI Assistant Icon */}
         <button
+          type="button"
+          onClick={() => setAssistantOpen(true)}
           title="AI Assistant"
           className="group/ai relative flex h-[var(--dock-icon)] w-[var(--dock-icon)] shrink-0 items-center justify-center overflow-hidden rounded-[var(--dock-radius)] border border-white/50 bg-white/30 shadow-[0_6px_12px_-3px_rgba(15,23,42,0.25),inset_0_1px_1px_rgba(255,255,255,0.6)] backdrop-blur-xl backdrop-saturate-150 transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-110"
         >
@@ -147,6 +151,10 @@ export function Sidebar({ role }: { role: Role }) {
       </div>
 
       <DockTooltip tooltip={tooltip} />
+      <AssistantPanel
+        open={assistantOpen}
+        onClose={() => setAssistantOpen(false)}
+      />
     </aside>
   );
 }

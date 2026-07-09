@@ -33,8 +33,26 @@ export type EmailDraft = {
   usage?: TokenUsage;
 };
 
+/** A single turn in an assistant conversation. */
+export type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type ChatResult = {
+  text: string;
+  usage?: TokenUsage;
+};
+
+export type ChatOptions = {
+  /** System prompt establishing the assistant's persona/instructions. */
+  systemInstruction?: string;
+};
+
 export interface AiClient {
   draftEmail(input: EmailDraftInput): Promise<EmailDraft>;
+  /** Multi-turn chat. `messages` is the full history, oldest first. */
+  chat(messages: ChatMessage[], opts?: ChatOptions): Promise<ChatResult>;
 }
 
 function buildPrompt(input: EmailDraftInput): string {
@@ -114,6 +132,28 @@ class GeminiClient implements AiClient {
       : undefined;
     return { ...parseDraft(text, `Regarding: ${input.purpose}`), usage };
   }
+
+  async chat(messages: ChatMessage[], opts?: ChatOptions): Promise<ChatResult> {
+    const genAI = new GoogleGenerativeAI(this.apiKey);
+    const model = genAI.getGenerativeModel({
+      model: this.model,
+      systemInstruction: opts?.systemInstruction,
+    });
+    const contents = messages.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+    const result = await model.generateContent({ contents });
+    const meta = result.response.usageMetadata;
+    const usage: TokenUsage | undefined = meta
+      ? {
+          promptTokens: meta.promptTokenCount ?? 0,
+          completionTokens: meta.candidatesTokenCount ?? 0,
+          totalTokens: meta.totalTokenCount ?? 0,
+        }
+      : undefined;
+    return { text: result.response.text().trim(), usage };
+  }
 }
 
 class GroqClient implements AiClient {
@@ -153,6 +193,48 @@ class GroqClient implements AiClient {
       : undefined;
     return { ...parseDraft(text, `Regarding: ${input.purpose}`), usage };
   }
+
+  async chat(messages: ChatMessage[], opts?: ChatOptions): Promise<ChatResult> {
+    const msgs: Array<{ role: string; content: string }> = [];
+    if (opts?.systemInstruction) {
+      msgs.push({ role: "system", content: opts.systemInstruction });
+    }
+    for (const m of messages) {
+      msgs.push({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content,
+      });
+    }
+    const res = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: msgs,
+          temperature: 0.6,
+        }),
+      },
+    );
+    if (!res.ok) {
+      throw new Error(`Groq request failed: ${res.status} ${await res.text()}`);
+    }
+    const data = await res.json();
+    const text: string = data.choices?.[0]?.message?.content ?? "";
+    const u = data.usage;
+    const usage: TokenUsage | undefined = u
+      ? {
+          promptTokens: u.prompt_tokens ?? 0,
+          completionTokens: u.completion_tokens ?? 0,
+          totalTokens: u.total_tokens ?? 0,
+        }
+      : undefined;
+    return { text: text.trim(), usage };
+  }
 }
 
 /** Offline fallback so the app works without any AI keys. */
@@ -176,6 +258,16 @@ class MockClient implements AiClient {
       .join("\n");
     return { subject: `Regarding: ${input.purpose}`, body };
   }
+
+  async chat(messages: ChatMessage[]): Promise<ChatResult> {
+    const last = messages[messages.length - 1]?.content ?? "";
+    return {
+      text:
+        "I'm currently running in mock mode — no AI provider is configured. " +
+        "Set AI_PROVIDER and an API key in the environment to enable real " +
+        `responses.\n\nYou said: "${last}"`,
+    };
+  }
 }
 
 export function getAiClient(): AiClient {
@@ -184,7 +276,9 @@ export function getAiClient(): AiClient {
   if (provider === "gemini" && process.env.GEMINI_API_KEY) {
     return new GeminiClient(
       process.env.GEMINI_API_KEY,
-      process.env.GEMINI_MODEL ?? "gemini-1.5-flash",
+      // Use a `-latest` alias so the default doesn't break when a pinned model
+      // version is retired. Override with GEMINI_MODEL when a specific model is needed.
+      process.env.GEMINI_MODEL ?? "gemini-flash-lite-latest",
     );
   }
   if (provider === "groq" && process.env.GROQ_API_KEY) {
