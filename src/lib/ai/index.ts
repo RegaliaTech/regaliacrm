@@ -1,4 +1,10 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import {
+  GoogleGenerativeAI,
+  SchemaType,
+  type FunctionDeclaration,
+  type Schema,
+} from "@google/generative-ai";
+import type { ToolDeclaration } from "./tools";
 
 export type EmailDraftInput = {
   /** What the email is about / the case. */
@@ -49,10 +55,59 @@ export type ChatOptions = {
   systemInstruction?: string;
 };
 
+/** Executes a tool call and returns a JSON-serializable result. */
+export type ToolCallHandler = (
+  name: string,
+  args: Record<string, unknown>,
+) => Promise<unknown>;
+
+export type ChatToolOptions = ChatOptions & {
+  tools?: ToolDeclaration[];
+  onToolCall?: ToolCallHandler;
+};
+
 export interface AiClient {
   draftEmail(input: EmailDraftInput): Promise<EmailDraft>;
   /** Multi-turn chat. `messages` is the full history, oldest first. */
   chat(messages: ChatMessage[], opts?: ChatOptions): Promise<ChatResult>;
+  /**
+   * Multi-turn chat with tool/function calling. The client runs the
+   * call→execute→continue loop internally via `opts.onToolCall`.
+   */
+  chatWithTools(
+    messages: ChatMessage[],
+    opts: ChatToolOptions,
+  ): Promise<ChatResult>;
+}
+
+const MAX_TOOL_ROUNDS = 4;
+
+const SCHEMA_TYPE_MAP: Record<string, SchemaType> = {
+  string: SchemaType.STRING,
+  number: SchemaType.NUMBER,
+  integer: SchemaType.INTEGER,
+  boolean: SchemaType.BOOLEAN,
+};
+
+/** Convert a provider-neutral tool declaration to Gemini's format. */
+function toGeminiDeclaration(t: ToolDeclaration): FunctionDeclaration {
+  const properties: Record<string, Schema> = {};
+  for (const [key, prop] of Object.entries(t.parameters.properties)) {
+    properties[key] = {
+      type: SCHEMA_TYPE_MAP[prop.type] ?? SchemaType.STRING,
+      description: prop.description,
+      ...(prop.enum ? { enum: prop.enum, format: "enum" } : {}),
+    } as Schema;
+  }
+  return {
+    name: t.name,
+    description: t.description,
+    parameters: {
+      type: SchemaType.OBJECT,
+      properties,
+      required: t.parameters.required,
+    },
+  };
 }
 
 function buildPrompt(input: EmailDraftInput): string {
@@ -154,6 +209,59 @@ class GeminiClient implements AiClient {
       : undefined;
     return { text: result.response.text().trim(), usage };
   }
+
+  async chatWithTools(
+    messages: ChatMessage[],
+    opts: ChatToolOptions,
+  ): Promise<ChatResult> {
+    const declarations = (opts.tools ?? []).map(toGeminiDeclaration);
+    const genAI = new GoogleGenerativeAI(this.apiKey);
+    const model = genAI.getGenerativeModel({
+      model: this.model,
+      systemInstruction: opts.systemInstruction,
+      tools: declarations.length
+        ? [{ functionDeclarations: declarations }]
+        : undefined,
+    });
+
+    const history = messages.slice(0, -1).map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+    const chatSession = model.startChat({ history });
+
+    const last = messages[messages.length - 1];
+    let result = await chatSession.sendMessage(last?.content ?? "");
+
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const calls = result.response.functionCalls();
+      if (!calls || calls.length === 0) break;
+
+      const responseParts = [];
+      for (const call of calls) {
+        const output = opts.onToolCall
+          ? await opts.onToolCall(
+              call.name,
+              (call.args ?? {}) as Record<string, unknown>,
+            )
+          : { error: "No tool executor available." };
+        responseParts.push({
+          functionResponse: { name: call.name, response: output as object },
+        });
+      }
+      result = await chatSession.sendMessage(responseParts);
+    }
+
+    const meta = result.response.usageMetadata;
+    const usage: TokenUsage | undefined = meta
+      ? {
+          promptTokens: meta.promptTokenCount ?? 0,
+          completionTokens: meta.candidatesTokenCount ?? 0,
+          totalTokens: meta.totalTokenCount ?? 0,
+        }
+      : undefined;
+    return { text: result.response.text().trim(), usage };
+  }
 }
 
 class GroqClient implements AiClient {
@@ -235,6 +343,80 @@ class GroqClient implements AiClient {
       : undefined;
     return { text: text.trim(), usage };
   }
+
+  async chatWithTools(
+    messages: ChatMessage[],
+    opts: ChatToolOptions,
+  ): Promise<ChatResult> {
+    const tools = (opts.tools ?? []).map((t) => ({
+      type: "function",
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+      },
+    }));
+    const msgs: Array<Record<string, unknown>> = [];
+    if (opts.systemInstruction) {
+      msgs.push({ role: "system", content: opts.systemInstruction });
+    }
+    for (const m of messages) {
+      msgs.push({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content,
+      });
+    }
+
+    let text = "";
+    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+      const res = await fetch(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: this.model,
+            messages: msgs,
+            temperature: 0.6,
+            tools: tools.length ? tools : undefined,
+          }),
+        },
+      );
+      if (!res.ok) {
+        throw new Error(`Groq request failed: ${res.status} ${await res.text()}`);
+      }
+      const data = await res.json();
+      const msg = data.choices?.[0]?.message as
+        | { content?: string; tool_calls?: Array<Record<string, unknown>> }
+        | undefined;
+      const toolCalls = msg?.tool_calls;
+      if (toolCalls?.length && opts.onToolCall) {
+        msgs.push(msg as Record<string, unknown>);
+        for (const tc of toolCalls) {
+          const fn = tc.function as { name: string; arguments?: string };
+          let args: Record<string, unknown> = {};
+          try {
+            args = JSON.parse(fn.arguments || "{}");
+          } catch {
+            // ignore malformed args
+          }
+          const output = await opts.onToolCall(fn.name, args);
+          msgs.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: JSON.stringify(output),
+          });
+        }
+        continue;
+      }
+      text = msg?.content ?? "";
+      break;
+    }
+    return { text: text.trim() };
+  }
 }
 
 /** Offline fallback so the app works without any AI keys. */
@@ -267,6 +449,11 @@ class MockClient implements AiClient {
         "Set AI_PROVIDER and an API key in the environment to enable real " +
         `responses.\n\nYou said: "${last}"`,
     };
+  }
+
+  async chatWithTools(messages: ChatMessage[]): Promise<ChatResult> {
+    // Mock mode has no tool access; fall back to the plain reply.
+    return this.chat(messages);
   }
 }
 
