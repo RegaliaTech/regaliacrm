@@ -128,6 +128,9 @@ export function Sidebar({ role }: { role: Role }) {
         <span className="my-1 h-px w-8 shrink-0 bg-gradient-to-r from-transparent via-slate-900/15 to-transparent" />
 
         {/* AI Assistant Icon */}
+        <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
+          AI
+        </span>
         <button
           ref={aiButtonRef}
           type="button"
