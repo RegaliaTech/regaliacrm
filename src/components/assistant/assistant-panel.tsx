@@ -44,6 +44,7 @@ export function AssistantPanel({
   onClose: () => void;
   anchorRef?: RefObject<HTMLButtonElement | null>;
 }) {
+  const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -51,6 +52,8 @@ export function AssistantPanel({
   const idRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => setMounted(true), []);
 
   // Close on Escape.
   useEffect(() => {
@@ -179,7 +182,7 @@ export function AssistantPanel({
     ]);
   };
 
-  if (typeof document === "undefined") return null;
+  if (!mounted) return null;
 
   return createPortal(
     <div
