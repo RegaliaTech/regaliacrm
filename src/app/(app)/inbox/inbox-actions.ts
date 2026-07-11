@@ -37,7 +37,7 @@ export async function syncInboxAction(
     }
 
     const r = await syncInbox({ limit: 50 });
-    revalidatePath("/emails");
+    revalidatePath("/inbox");
     if (r.errors.length && r.inserted === 0) {
       return { ok: false, error: r.errors[0] };
     }
@@ -68,7 +68,7 @@ export async function markInboxRead(
       where: { id },
       data: { isRead },
     });
-    revalidatePath("/emails");
+    revalidatePath("/inbox");
     return { ok: true };
   } catch (err) {
     return {

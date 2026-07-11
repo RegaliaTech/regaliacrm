@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { RefreshCw } from "lucide-react";
-import { syncInboxAction } from "@/app/(app)/emails/inbox-actions";
+import { syncInboxAction } from "@/app/(app)/inbox/inbox-actions";
 import { cn } from "@/lib/utils";
 
 /**

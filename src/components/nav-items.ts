@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Receipt,
   Truck,
+  Inbox,
 } from "lucide-react";
 
 export type NavGroupKey = "workspace" | "finance" | "outreach" | "system";
@@ -102,6 +103,13 @@ export const NAV_ITEMS: NavItem[] = [
     gradient: "from-orange-500 to-red-600",
     roles: ["ADMIN", "ACCOUNTS"],
     group: "finance",
+  },
+  {
+    href: "/inbox",
+    label: "Inbox",
+    icon: Inbox,
+    gradient: "from-orange-500 to-red-600",
+    group: "outreach",
   },
   {
     href: "/emails",
