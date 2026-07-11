@@ -1,31 +1,5 @@
-import nodemailer, { type Transporter } from "nodemailer";
-
-let transporter: Transporter | null = null;
-
-function getTransporter(): Transporter {
-  if (transporter) return transporter;
-
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT ?? 587);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASSWORD;
-  const secure = process.env.SMTP_SECURE === "true";
-
-  if (!host || !user || !pass) {
-    throw new Error(
-      "SMTP is not configured. Set SMTP_HOST, SMTP_USER and SMTP_PASSWORD in your environment.",
-    );
-  }
-
-  transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
-  });
-
-  return transporter;
-}
+import nodemailer from "nodemailer";
+import { getSettings } from "@/lib/settings";
 
 export type SendEmailInput = {
   to: string;
@@ -40,15 +14,73 @@ export type SendEmailInput = {
   }>;
 };
 
+type SmtpConfig = {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
+  from: string;
+};
+
+async function resolveSmtpConfig(): Promise<SmtpConfig> {
+  // Prefer database settings (configured via Settings → Email & SMTP).
+  // Fall back to environment variables for dev/self-hosted setups.
+  try {
+    const settings = await getSettings();
+    if (settings.smtpHost && settings.smtpUsername && settings.smtpPassword) {
+      const fromName = settings.smtpFromName ?? "Regalia";
+      const fromEmail = settings.smtpFrom ?? settings.smtpUsername;
+      return {
+        host: settings.smtpHost,
+        port: settings.smtpPort ?? 465,
+        secure: settings.smtpSecure,
+        user: settings.smtpUsername,
+        pass: settings.smtpPassword,
+        from: `${fromName} <${fromEmail}>`,
+      };
+    }
+  } catch {
+    // DB unavailable — fall through to env vars.
+  }
+
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASSWORD;
+
+  if (!host || !user || !pass) {
+    throw new Error(
+      "SMTP is not configured. Set SMTP_HOST, SMTP_USER and SMTP_PASSWORD in your environment, or configure Email & SMTP in Settings.",
+    );
+  }
+
+  return {
+    host,
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: process.env.SMTP_SECURE === "true",
+    user,
+    pass,
+    from: process.env.SMTP_FROM ?? user,
+  };
+}
+
 export async function sendEmail(input: SendEmailInput): Promise<void> {
-  const from = process.env.SMTP_FROM ?? process.env.SMTP_USER!;
+  const config = await resolveSmtpConfig();
+
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: { user: config.user, pass: config.pass },
+  });
+
   const html = input.body
     .split("\n")
     .map((line) => escapeHtml(line))
     .join("<br>");
 
-  await getTransporter().sendMail({
-    from,
+  await transporter.sendMail({
+    from: config.from,
     to: input.to,
     subject: input.subject,
     text: input.body,
