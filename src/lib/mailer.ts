@@ -196,7 +196,7 @@ function renderHeader(company: CompanyInfo): string {
     : `<span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.01em;">${escapeHtml(company.name)}</span>`;
 
   return `<tr>
-    <td style="background:linear-gradient(135deg,#6366f1 0%,#7c3aed 100%);padding:24px 40px;">
+    <td style="background:linear-gradient(135deg,#f97316 0%,#ea580c 100%);padding:24px 40px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <td style="vertical-align:middle;">${brand}</td>
@@ -233,12 +233,12 @@ function renderFooter(company: CompanyInfo): string {
       ? company.website
       : `https://${company.website}`;
     contactBits.push(
-      `<a href="${escapeAttr(url)}" style="color:#6366f1;text-decoration:none;">${escapeHtml(company.website.replace(/^https?:\/\//, ""))}</a>`,
+      `<a href="${escapeAttr(url)}" style="color:#ea580c;text-decoration:none;">${escapeHtml(company.website.replace(/^https?:\/\//, ""))}</a>`,
     );
   }
   if (company.email) {
     contactBits.push(
-      `<a href="mailto:${escapeAttr(company.email)}" style="color:#6366f1;text-decoration:none;">${escapeHtml(company.email)}</a>`,
+      `<a href="mailto:${escapeAttr(company.email)}" style="color:#ea580c;text-decoration:none;">${escapeHtml(company.email)}</a>`,
     );
   }
 
