@@ -1,4 +1,4 @@
-import type { EmailStatus } from "@prisma/client";
+import type { EmailDirection, EmailStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { safeQuery } from "@/lib/safe-query";
 
@@ -34,9 +34,13 @@ export type EmailView = {
 export type EmailListItem = {
   id: string;
   toEmail: string;
+  fromEmail: string | null;
   subject: string;
   status: EmailStatus;
+  direction: EmailDirection;
+  isRead: boolean;
   sentAt: Date | null;
+  receivedAt: Date | null;
   createdAt: Date;
   customerName: string | null;
   quotationNumber: string | null;
@@ -44,6 +48,7 @@ export type EmailListItem = {
 
 export type EmailFilterOptions = {
   status?: EmailStatus;
+  direction?: EmailDirection;
   customerId?: string;
   quotationId?: string;
   search?: string;
@@ -117,6 +122,9 @@ export async function listEmails(
     if (filters?.status) {
       where.status = filters.status;
     }
+    if (filters?.direction) {
+      where.direction = filters.direction;
+    }
     if (filters?.customerId) {
       where.customerId = filters.customerId;
     }
@@ -151,9 +159,13 @@ export async function listEmails(
     return emails.map((email) => ({
       id: email.id,
       toEmail: email.toEmail,
+      fromEmail: email.fromEmail,
       subject: email.subject,
       status: email.status,
+      direction: email.direction,
+      isRead: email.isRead,
       sentAt: email.sentAt,
+      receivedAt: email.receivedAt,
       createdAt: email.createdAt,
       customerName: email.customer?.name ?? null,
       quotationNumber: email.quotation?.number ?? null,

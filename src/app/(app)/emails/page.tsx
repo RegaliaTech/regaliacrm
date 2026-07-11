@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { Plus, Mail, CheckCircle, XCircle, FileText } from "lucide-react";
-import type { EmailStatus } from "@prisma/client";
+import { Plus, Mail, CheckCircle, XCircle, FileText, Inbox } from "lucide-react";
+import type { EmailDirection, EmailStatus } from "@prisma/client";
 import { requireUser, can, WRITE_ROLES } from "@/lib/rbac";
 import { listEmails } from "@/lib/emails";
 import { formatDate } from "@/lib/utils";
@@ -11,11 +11,18 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SearchInput } from "@/components/ui/search-input";
+import { SyncInboxButton } from "./sync-inbox-button";
 
-type TabKey = "all" | "sent" | "draft" | "failed";
+type TabKey = "inbox" | "all" | "sent" | "draft" | "failed";
 
-const TABS: { key: TabKey; label: string; status?: EmailStatus }[] = [
-  { key: "all", label: "All" },
+const TABS: {
+  key: TabKey;
+  label: string;
+  status?: EmailStatus;
+  direction?: EmailDirection;
+}[] = [
+  { key: "inbox", label: "Inbox", direction: "INBOUND" },
+  { key: "all", label: "All Sent" },
   { key: "sent", label: "Sent", status: "SENT" },
   { key: "draft", label: "Drafts", status: "DRAFT" },
   { key: "failed", label: "Failed", status: "FAILED" },
@@ -54,18 +61,23 @@ export default async function EmailsPage({
   const user = await requireUser();
   const { tab, q } = await searchParams;
   const activeTab: TabKey =
-    (TABS.find((t) => t.key === tab)?.key as TabKey) ?? "all";
+    (TABS.find((t) => t.key === tab)?.key as TabKey) ?? "inbox";
   const query = (q ?? "").trim().toLowerCase();
   const canWrite = can(user.role, WRITE_ROLES);
 
   const all = await listEmails();
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status;
+  const activeDirection = TABS.find((t) => t.key === activeTab)?.direction;
 
   const emails = all.filter((e) => {
+    if (activeDirection && e.direction !== activeDirection) return false;
+    // Non-inbox tabs default to outbound to keep counts sensible.
+    if (activeTab !== "inbox" && e.direction === "INBOUND") return false;
     if (activeStatus && e.status !== activeStatus) return false;
     if (query) {
       const haystack = [
         e.toEmail,
+        e.fromEmail,
         e.subject,
         e.customerName,
         e.quotationNumber,
@@ -78,12 +90,16 @@ export default async function EmailsPage({
     return true;
   });
 
+  const outbound = all.filter((e) => e.direction === "OUTBOUND");
   const counts = {
-    all: all.length,
-    sent: all.filter((e) => e.status === "SENT").length,
-    draft: all.filter((e) => e.status === "DRAFT").length,
-    failed: all.filter((e) => e.status === "FAILED").length,
+    inbox: all.filter((e) => e.direction === "INBOUND").length,
+    all: outbound.length,
+    sent: outbound.filter((e) => e.status === "SENT").length,
+    draft: outbound.filter((e) => e.status === "DRAFT").length,
+    failed: outbound.filter((e) => e.status === "FAILED").length,
   } satisfies Record<TabKey, number>;
+
+  const isInbox = activeTab === "inbox";
 
   return (
     <div className="animate-in mx-auto max-w-7xl space-y-6">
@@ -140,43 +156,112 @@ export default async function EmailsPage({
           })}
         </div>
 
-        <SearchInput
-          action="/emails"
-          defaultValue={query}
-          placeholder="Search emails..."
-          hidden={tab ? { tab } : undefined}
-          className="max-w-xs flex-1"
-          inputClassName="h-9 w-full"
-        />
+        <div className="flex items-center gap-3">
+          {isInbox && <SyncInboxButton />}
+          <SearchInput
+            action="/emails"
+            defaultValue={query}
+            placeholder="Search emails..."
+            hidden={tab ? { tab } : undefined}
+            className="max-w-xs flex-1"
+            inputClassName="h-9 w-full"
+          />
+        </div>
       </div>
 
       {emails.length === 0 ? (
         <EmptyState
-          icon={Mail}
+          icon={isInbox ? Inbox : Mail}
           title={
             query
               ? "No emails found"
-              : activeTab === "all"
-                ? "No emails yet"
-                : `No ${activeTab} emails`
+              : isInbox
+                ? "Inbox is empty"
+                : activeTab === "all"
+                  ? "No emails yet"
+                  : `No ${activeTab} emails`
           }
           description={
             query
               ? "Try adjusting your search"
-              : "Compose your first email to get started"
+              : isInbox
+                ? "Click Sync now to pull the latest messages from the mailbox."
+                : "Compose your first email to get started"
           }
           action={
-            canWrite &&
-            !query && (
+            !isInbox && canWrite && !query ? (
               <Link
                 href="/emails/new"
                 className={buttonClasses("primary", "md")}
               >
                 <Plus className="h-4 w-4" /> Compose email
               </Link>
-            )
+            ) : undefined
           }
         />
+      ) : isInbox ? (
+        <div className="glass overflow-hidden rounded-3xl">
+          <Table>
+            <THead>
+              <TR>
+                <TH>From</TH>
+                <TH>Subject</TH>
+                <TH>Customer</TH>
+                <TH>Received</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {emails.map((email) => (
+                <TR key={email.id}>
+                  <TD>
+                    <div className="flex items-center gap-2">
+                      {!email.isRead && (
+                        <span className="inline-block h-2 w-2 rounded-full bg-[var(--primary)]" />
+                      )}
+                      <Link
+                        href={`/emails/${email.id}`}
+                        className={cn(
+                          "hover:text-[var(--primary)]",
+                          email.isRead
+                            ? "text-slate-600"
+                            : "font-semibold text-slate-900",
+                        )}
+                      >
+                        {email.fromEmail ?? "—"}
+                      </Link>
+                    </div>
+                  </TD>
+                  <TD>
+                    <div
+                      className={cn(
+                        "max-w-md truncate",
+                        email.isRead ? "text-slate-600" : "text-slate-900",
+                      )}
+                    >
+                      {email.subject}
+                    </div>
+                  </TD>
+                  <TD>
+                    {email.customerName ? (
+                      <span className="text-slate-600">{email.customerName}</span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </TD>
+                  <TD>
+                    {email.receivedAt ? (
+                      <time className="text-sm text-slate-600">
+                        {formatDate(email.receivedAt)}
+                      </time>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        </div>
       ) : (
         <div className="glass overflow-hidden rounded-3xl">
           <Table>

@@ -38,6 +38,11 @@ enum QuotationStatus {
   EXPIRED
 }
 
+enum EmailDirection {
+  OUTBOUND
+  INBOUND
+}
+
 enum EmailStatus {
   DRAFT
   SENT
@@ -338,6 +343,13 @@ model EmailLog {
   aiGenerated    Boolean               @default(false)
   error          String?
   sentAt         DateTime?
+  // Inbox (INBOUND) fields — populated by the IMAP sync job.
+  direction      EmailDirection        @default(OUTBOUND)
+  fromEmail      String?
+  receivedAt     DateTime?
+  messageId      String?               @unique
+  inReplyTo      String?
+  isRead         Boolean               @default(false)
   // Manual reply tracking + automation linkage
   repliedAt      DateTime?
   sequenceId     String?
@@ -353,6 +365,8 @@ model EmailLog {
   @@index([status])
   @@index([sequenceId])
   @@index([bulkEmailId])
+  @@index([direction, receivedAt])
+  @@index([fromEmail])
 }
 
 // ---------------------------------------------------------------------------
@@ -585,6 +599,14 @@ model Settings {
   smtpFrom     String?
   smtpFromName String?
   smtpSecure   Boolean @default(false) // Use TLS/SSL
+
+  // Inbox (IMAP) — for pulling received emails into the CRM.
+  imapHost     String?
+  imapPort     Int?    @default(993)
+  imapSecure   Boolean @default(true)
+  imapUsername String?
+  imapPassword String?
+  inboxLastSyncedAt DateTime?
 
   // Business Defaults
   currency              String  @default("AED")

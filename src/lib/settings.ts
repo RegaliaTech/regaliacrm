@@ -17,6 +17,12 @@ type Settings = {
   smtpFrom: string | null;
   smtpFromName: string | null;
   smtpSecure: boolean;
+  imapHost: string | null;
+  imapPort: number | null;
+  imapSecure: boolean;
+  imapUsername: string | null;
+  imapPassword: string | null;
+  inboxLastSyncedAt: Date | null;
   currency: string;
   defaultTaxRate: number;
   quotationPrefix: string;
@@ -44,6 +50,12 @@ const getDefaultSettings = (): Settings => ({
   smtpFrom: null,
   smtpFromName: null,
   smtpSecure: false,
+  imapHost: null,
+  imapPort: 993,
+  imapSecure: true,
+  imapUsername: null,
+  imapPassword: null,
+  inboxLastSyncedAt: null,
   currency: "AED",
   defaultTaxRate: 5,
   quotationPrefix: "QUO-",
