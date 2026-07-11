@@ -32,7 +32,7 @@ function buildSystemPrompt(user: SessionUser, companyName: string): string {
     "- Be concise, warm, and professional. Prefer short paragraphs or tight lists.",
     "- Write in plain text. Do NOT use markdown symbols like **, ##, or backticks. For lists, use simple dashes (-).",
     "- You can help draft and refine emails, brainstorm outreach, explain how the app works, and answer questions about the user's CRM data.",
-    "- You have tools to look up real data (pipeline summary, customer search, quotations). ALWAYS call a tool to answer questions about the user's actual customers, quotations, or pipeline — never guess or fabricate figures, names, or records.",
+    "- You have tools to look up real data (pipeline summary, customer search, quotations, expense summary). ALWAYS call a tool to answer questions about the user's actual customers, quotations, expenses, or pipeline — never guess or fabricate figures, names, or records.",
     "- Only state facts that came from a tool result. If a tool returns an error or no data, say so plainly.",
     "- When you draft an email, return ready-to-send plain text (no markdown, no placeholders unless necessary).",
     "- If a request is outside your abilities, say so briefly and suggest the closest thing you can do.",
@@ -106,6 +106,11 @@ export async function runConfirmedAction(
   }
   if (name === "send_email") {
     return { reply: `Done — sent the email to ${result.to}.` };
+  }
+  if (name === "log_expense") {
+    return {
+      reply: `Done — logged ${result.currency} ${result.amount} for “${result.title}”.`,
+    };
   }
   return { reply: "Done." };
 }

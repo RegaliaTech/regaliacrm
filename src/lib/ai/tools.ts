@@ -1,8 +1,10 @@
-import type { CustomerStatus } from "@prisma/client";
+import type { CustomerStatus, ExpenseCategory } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getCustomers } from "@/lib/customers";
 import { getQuotations } from "@/lib/quotations";
+import { getExpenses } from "@/lib/expenses";
+import { getSettings } from "@/lib/settings";
 import { sendEmail } from "@/lib/mailer";
 import type { SessionUser } from "@/lib/rbac";
 
@@ -40,6 +42,15 @@ const QUOTATION_STATUSES = [
   "REJECTED",
   "EXPIRED",
 ] as const;
+
+const EXPENSE_CATEGORIES: ExpenseCategory[] = [
+  "RENT",
+  "UTILITIES",
+  "SALARIES",
+  "MARKETING",
+  "MAINTENANCE",
+  "OTHER",
+];
 
 // ---------------------------------------------------------------------------
 // Read tools
@@ -132,6 +143,56 @@ async function listQuotations(args: Record<string, unknown>): Promise<unknown> {
   };
 }
 
+async function getExpenseSummary(
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  const from = args.from ? new Date(String(args.from)) : undefined;
+  const to = args.to ? new Date(String(args.to)) : undefined;
+  const category =
+    typeof args.category === "string" ? args.category.toUpperCase() : undefined;
+
+  if (from && Number.isNaN(from.getTime())) {
+    return { error: "The `from` date is invalid — use YYYY-MM-DD." };
+  }
+  if (to && Number.isNaN(to.getTime())) {
+    return { error: "The `to` date is invalid — use YYYY-MM-DD." };
+  }
+
+  const all = await getExpenses({ from, to });
+  const filtered = category
+    ? all.filter((e) => e.category === category)
+    : all;
+
+  const totalsByCategory: Record<string, number> = {};
+  let total = 0;
+  for (const e of filtered) {
+    total += e.amount;
+    totalsByCategory[e.category] = (totalsByCategory[e.category] ?? 0) + e.amount;
+  }
+
+  const currency = filtered[0]?.currency ?? "AED";
+  const recent = filtered.slice(0, 10).map((e) => ({
+    id: e.id,
+    title: e.title,
+    category: e.category,
+    amount: e.amount,
+    currency: e.currency,
+    incurredAt: e.incurredAt.toISOString(),
+  }));
+
+  return {
+    count: filtered.length,
+    total,
+    currency,
+    byCategory: totalsByCategory,
+    recent,
+    range: {
+      from: from?.toISOString() ?? null,
+      to: to?.toISOString() ?? null,
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -168,6 +229,30 @@ export const TOOL_DECLARATIONS: ToolDeclaration[] = [
           type: "string",
           description: "Optional status filter.",
           enum: [...QUOTATION_STATUSES],
+        },
+      },
+    },
+  },
+  {
+    name: "get_expense_summary",
+    description:
+      "Summarize company expenses (rent, utilities, salaries, marketing, maintenance, other). Returns the total, currency, per-category breakdown, and the 10 most recent items. Use for questions like 'how much did we spend on marketing this quarter?' or 'what were our expenses last month?'. Filters are optional.",
+    parameters: {
+      type: "object",
+      properties: {
+        from: {
+          type: "string",
+          description:
+            "Only include expenses on or after this date (YYYY-MM-DD).",
+        },
+        to: {
+          type: "string",
+          description: "Only include expenses before this date (YYYY-MM-DD).",
+        },
+        category: {
+          type: "string",
+          description: "Optional category filter.",
+          enum: [...EXPENSE_CATEGORIES],
         },
       },
     },
@@ -239,6 +324,45 @@ export const TOOL_DECLARATIONS: ToolDeclaration[] = [
         },
       },
       required: ["to", "subject", "body"],
+    },
+  },
+  {
+    name: "log_expense",
+    description:
+      "Log a company expense (rent, utilities, salaries, marketing, maintenance, other). Use when the user says things like 'log AED 5000 rent for July' or 'record a marketing expense'. The user will be asked to confirm before the record is created.",
+    write: true,
+    parameters: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description:
+            "Short description of the expense, e.g. 'July office rent' (required).",
+        },
+        amount: {
+          type: "number",
+          description: "Amount in the given currency (required, positive).",
+        },
+        category: {
+          type: "string",
+          description: "Expense category. Defaults to OTHER.",
+          enum: [...EXPENSE_CATEGORIES],
+        },
+        currency: {
+          type: "string",
+          description: "ISO currency code. Defaults to the company default (AED).",
+        },
+        incurredAt: {
+          type: "string",
+          description:
+            "When the expense was incurred (YYYY-MM-DD or ISO 8601). Defaults to today.",
+        },
+        notes: {
+          type: "string",
+          description: "Optional free-text notes.",
+        },
+      },
+      required: ["title", "amount"],
     },
   },
 ];
@@ -408,10 +532,66 @@ async function sendCustomerEmail(
   return { to, subject };
 }
 
+async function logExpense(
+  args: Record<string, unknown>,
+  user: SessionUser,
+): Promise<unknown> {
+  const title = String(args.title ?? "").trim();
+  if (!title) return { error: "An expense title is required." };
+
+  const amount = Number(args.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { error: "Amount must be a positive number." };
+  }
+
+  const rawCategory = String(args.category ?? "OTHER").toUpperCase() as ExpenseCategory;
+  const category = EXPENSE_CATEGORIES.includes(rawCategory) ? rawCategory : "OTHER";
+
+  let currency = args.currency ? String(args.currency).toUpperCase() : "";
+  if (!currency) {
+    try {
+      const settings = await getSettings();
+      currency = settings.currency || "AED";
+    } catch {
+      currency = "AED";
+    }
+  }
+
+  const incurredAt = args.incurredAt
+    ? new Date(String(args.incurredAt))
+    : new Date();
+  if (Number.isNaN(incurredAt.getTime())) {
+    return { error: "The incurredAt date is invalid." };
+  }
+
+  const notes = args.notes ? String(args.notes).trim() || null : null;
+
+  const expense = await prisma.expense.create({
+    data: {
+      title,
+      category,
+      amount,
+      currency,
+      incurredAt,
+      notes,
+      createdById: user.id === "preview-user" ? null : user.id,
+    },
+  });
+  return {
+    id: expense.id,
+    title: expense.title,
+    category: expense.category,
+    amount: Number(expense.amount),
+    currency: expense.currency,
+    incurredAt: expense.incurredAt.toISOString(),
+  };
+}
+
 const WRITE_TOOL_HANDLERS: Record<string, WriteToolHandler> = {
   create_customer: createCustomer,
   schedule_followup: scheduleFollowUp,
   send_email: sendCustomerEmail,
+  log_expense: logExpense,
 };
 
 /** A plain-language description of a pending write, shown in the confirm card. */
@@ -433,6 +613,12 @@ export function summarizeWriteAction(
   if (name === "send_email") {
     const subj = args.subject ? `“${args.subject}”` : "an email";
     return `Send ${subj} to ${args.to ?? "the recipient"}`;
+  }
+  if (name === "log_expense") {
+    const cur = args.currency ? String(args.currency).toUpperCase() : "AED";
+    const cat = args.category ? String(args.category).toUpperCase() : "OTHER";
+    const when = args.incurredAt ? ` on ${args.incurredAt}` : "";
+    return `Log ${cat} expense: “${args.title ?? ""}” — ${cur} ${args.amount ?? 0}${when}`;
   }
   return `Run ${name}`;
 }
@@ -464,6 +650,7 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_pipeline_summary: getPipelineSummary,
   search_customers: searchCustomers,
   list_quotations: listQuotations,
+  get_expense_summary: getExpenseSummary,
 };
 
 /**
