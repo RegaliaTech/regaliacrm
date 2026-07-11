@@ -1,13 +1,16 @@
 import type { CustomerStatus } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getCustomers } from "@/lib/customers";
 import { getQuotations } from "@/lib/quotations";
+import { sendEmail } from "@/lib/mailer";
 import type { SessionUser } from "@/lib/rbac";
 
 /**
  * Provider-neutral tool declarations + handlers for the AI assistant.
- * Phase B ships read-only tools; write tools (Phase C) will set `write: true`
- * and be gated behind a user-confirmation step.
+ * Read-only tools run directly; write tools set `write: true` and are gated
+ * behind a user-confirmation step plus WRITE_ROLES (see runAssistant /
+ * confirmAssistantAction).
  */
 
 type ToolProperty = {
@@ -214,6 +217,30 @@ export const TOOL_DECLARATIONS: ToolDeclaration[] = [
       required: ["customerId", "caseSubject"],
     },
   },
+  {
+    name: "send_email",
+    description:
+      "Send an email to a customer. Use when the user asks to email someone. If you only have a customer's name, first look up their address with search_customers. Write the body as plain text. The user will be asked to confirm before the email is sent.",
+    write: true,
+    parameters: {
+      type: "object",
+      properties: {
+        to: {
+          type: "string",
+          description: "Recipient email address (required).",
+        },
+        subject: {
+          type: "string",
+          description: "Email subject line (required).",
+        },
+        body: {
+          type: "string",
+          description: "Plain-text email body (required).",
+        },
+      },
+      required: ["to", "subject", "body"],
+    },
+  },
 ];
 
 /** Names of tools that mutate data — gated behind user confirmation + RBAC. */
@@ -315,9 +342,72 @@ async function scheduleFollowUp(
   };
 }
 
+async function sendCustomerEmail(
+  args: Record<string, unknown>,
+  user: SessionUser,
+): Promise<unknown> {
+  const to = String(args.to ?? "").trim();
+  const subject = String(args.subject ?? "").trim();
+  const body = String(args.body ?? "").trim();
+
+  if (!z.string().email().safeParse(to).success) {
+    return { error: "A valid recipient email address is required." };
+  }
+  if (!subject) return { error: "An email subject is required." };
+  if (!body) return { error: "An email body is required." };
+
+  // Best-effort: link the log to a known customer with this address.
+  let customerId: string | null = null;
+  try {
+    const customer = await prisma.customer.findFirst({
+      where: { email: to.toLowerCase() },
+      select: { id: true },
+    });
+    customerId = customer?.id ?? null;
+  } catch {
+    // Non-fatal — still send + log without the linkage.
+  }
+
+  // The dev preview stub has no real User row to attribute the send to.
+  const senderId = user.id === "preview-user" ? null : user.id;
+  const logBase = { customerId, senderId, toEmail: to, subject, body, aiGenerated: true };
+
+  try {
+    await sendEmail({ to, subject, body });
+  } catch (error) {
+    // Record the failed attempt for auditing, then surface the error.
+    try {
+      await prisma.emailLog.create({
+        data: {
+          ...logBase,
+          status: "FAILED",
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
+      });
+    } catch {
+      // Ignore a secondary logging failure.
+    }
+    return {
+      error:
+        error instanceof Error ? error.message : "Failed to send the email.",
+    };
+  }
+
+  try {
+    await prisma.emailLog.create({
+      data: { ...logBase, status: "SENT", sentAt: new Date() },
+    });
+  } catch {
+    // The email was sent; a logging failure shouldn't fail the action.
+  }
+
+  return { to, subject };
+}
+
 const WRITE_TOOL_HANDLERS: Record<string, WriteToolHandler> = {
   create_customer: createCustomer,
   schedule_followup: scheduleFollowUp,
+  send_email: sendCustomerEmail,
 };
 
 /** A plain-language description of a pending write, shown in the confirm card. */
@@ -335,6 +425,10 @@ export function summarizeWriteAction(
     const subj = args.caseSubject ? `: “${args.caseSubject}”` : "";
     const when = args.scheduledAt ? ` for ${args.scheduledAt}` : "";
     return `Schedule a follow-up${subj}${when}`;
+  }
+  if (name === "send_email") {
+    const subj = args.subject ? `“${args.subject}”` : "an email";
+    return `Send ${subj} to ${args.to ?? "the recipient"}`;
   }
   return `Run ${name}`;
 }

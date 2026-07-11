@@ -104,5 +104,8 @@ export async function runConfirmedAction(
   if (name === "schedule_followup") {
     return { reply: `Done — scheduled a follow-up for ${result.customer}.` };
   }
+  if (name === "send_email") {
+    return { reply: `Done — sent the email to ${result.to}.` };
+  }
   return { reply: "Done." };
 }
