@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { Sparkles, SendHorizontal, X, Loader2 } from "lucide-react";
+import Image from "next/image";
+import { SendHorizontal, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   sendAssistantMessage,
@@ -207,8 +208,14 @@ export function AssistantPanel({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-[var(--glow-primary)]">
-              <Sparkles className="h-[18px] w-[18px]" />
+            <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[var(--glow-primary)]">
+              <Image
+                src="/ai-assistant-icon.png"
+                alt=""
+                width={36}
+                height={36}
+                className="h-full w-full object-contain p-1.5 [filter:brightness(0)_invert(1)]"
+              />
             </div>
             <div>
               <p className="text-sm font-semibold text-slate-900">AI Assistant</p>
@@ -228,8 +235,14 @@ export function AssistantPanel({
         <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-[var(--glow-primary)]">
-                <Sparkles className="h-6 w-6" />
+              <div className="ai-alive-icon relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[var(--glow-primary)]">
+                <Image
+                  src="/ai-assistant-icon.png"
+                  alt=""
+                  width={56}
+                  height={56}
+                  className="h-full w-full object-contain p-2 [filter:brightness(0)_invert(1)]"
+                />
               </div>
               <div>
                 <p className="text-sm font-medium text-slate-900">
