@@ -372,8 +372,12 @@ async function sendCustomerEmail(
   const senderId = user.id === "preview-user" ? null : user.id;
   const logBase = { customerId, senderId, toEmail: to, subject, body, aiGenerated: true };
 
+  const signature = user.name
+    ? { name: user.name, role: user.role }
+    : undefined;
+
   try {
-    await sendEmail({ to, subject, body });
+    await sendEmail({ to, subject, body, signature });
   } catch (error) {
     // Record the failed attempt for auditing, then surface the error.
     try {
