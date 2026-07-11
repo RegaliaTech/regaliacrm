@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Role } from "@prisma/client";
 import { NAV_GROUPS, NAV_ITEMS } from "@/components/nav-items";
 import { cn } from "@/lib/utils";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import Image from "next/image";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
 
 type TooltipState = { label: string; top: number; left: number } | null;
@@ -31,6 +31,7 @@ export function Sidebar({ role }: { role: Role }) {
   const pathname = usePathname();
   const [tooltip, setTooltip] = useState<TooltipState>(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const aiButtonRef = useRef<HTMLButtonElement>(null);
   const items = NAV_ITEMS.filter(
     (item) => !item.roles || item.roles.includes(role),
   );
@@ -128,18 +129,20 @@ export function Sidebar({ role }: { role: Role }) {
 
         {/* AI Assistant Icon */}
         <button
+          ref={aiButtonRef}
           type="button"
-          onClick={() => setAssistantOpen(true)}
+          onClick={() => setAssistantOpen((v) => !v)}
           title="AI Assistant"
           className="group/ai relative flex h-[var(--dock-icon)] w-[var(--dock-icon)] shrink-0 items-center justify-center overflow-hidden rounded-[var(--dock-radius)] border border-white/50 bg-white/30 shadow-[0_6px_12px_-3px_rgba(15,23,42,0.25),inset_0_1px_1px_rgba(255,255,255,0.6)] backdrop-blur-xl backdrop-saturate-150 transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-110"
         >
           <span className="pointer-events-none absolute inset-x-0 top-0 z-20 h-1/2 rounded-t-[var(--dock-radius)] bg-gradient-to-b from-white/50 to-transparent" />
           <span className="pointer-events-none absolute inset-0 z-20 rounded-[var(--dock-radius)] ring-1 ring-inset ring-white/40" />
-          <DotLottieReact
-            src="https://lottie.host/1a388587-92dd-4d24-ab30-6eab267f62a5/ccemByaGpu.lottie"
-            loop
-            autoplay
-            className="absolute inset-0 z-10 h-full w-full scale-[2.6]"
+          <Image
+            src="/ai-assistant-icon.png"
+            alt="AI Assistant"
+            width={40}
+            height={40}
+            className="absolute inset-0 z-10 h-full w-full object-contain p-2"
           />
 
           {/* Tooltip */}
@@ -154,6 +157,7 @@ export function Sidebar({ role }: { role: Role }) {
       <AssistantPanel
         open={assistantOpen}
         onClose={() => setAssistantOpen(false)}
+        anchorRef={aiButtonRef}
       />
     </aside>
   );

@@ -45,9 +45,19 @@ export type ChatMessage = {
   content: string;
 };
 
+export type PendingToolCall = {
+  name: string;
+  args: Record<string, unknown>;
+};
+
 export type ChatResult = {
   text: string;
   usage?: TokenUsage;
+  /**
+   * Set when the model requested a write (mutating) tool. The loop stops
+   * without executing it, so the caller can ask the user to confirm.
+   */
+  pendingToolCall?: PendingToolCall;
 };
 
 export type ChatOptions = {
@@ -64,6 +74,11 @@ export type ToolCallHandler = (
 export type ChatToolOptions = ChatOptions & {
   tools?: ToolDeclaration[];
   onToolCall?: ToolCallHandler;
+  /**
+   * Tools that mutate data. When the model calls one, the loop stops and
+   * returns it as `pendingToolCall` instead of executing.
+   */
+  writeToolNames?: string[];
 };
 
 export interface AiClient {
@@ -233,9 +248,23 @@ class GeminiClient implements AiClient {
     const last = messages[messages.length - 1];
     let result = await chatSession.sendMessage(last?.content ?? "");
 
+    const writeNames = opts.writeToolNames ?? [];
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const calls = result.response.functionCalls();
       if (!calls || calls.length === 0) break;
+
+      // If the model wants a write tool, stop and surface it for confirmation
+      // instead of executing.
+      const writeCall = calls.find((c) => writeNames.includes(c.name));
+      if (writeCall) {
+        return {
+          text: safeText(result),
+          pendingToolCall: {
+            name: writeCall.name,
+            args: (writeCall.args ?? {}) as Record<string, unknown>,
+          },
+        };
+      }
 
       const responseParts = [];
       for (const call of calls) {
@@ -261,6 +290,17 @@ class GeminiClient implements AiClient {
         }
       : undefined;
     return { text: result.response.text().trim(), usage };
+  }
+}
+
+/** Gemini's response.text() throws when the candidate is only a function call. */
+function safeText(result: {
+  response: { text: () => string };
+}): string {
+  try {
+    return result.response.text().trim();
+  } catch {
+    return "";
   }
 }
 
@@ -394,6 +434,24 @@ class GroqClient implements AiClient {
         | undefined;
       const toolCalls = msg?.tool_calls;
       if (toolCalls?.length && opts.onToolCall) {
+        const writeNames = opts.writeToolNames ?? [];
+        // Surface a write call for confirmation instead of executing it.
+        for (const tc of toolCalls) {
+          const fn = tc.function as { name: string; arguments?: string };
+          if (writeNames.includes(fn.name)) {
+            let args: Record<string, unknown> = {};
+            try {
+              args = JSON.parse(fn.arguments || "{}");
+            } catch {
+              // ignore malformed args
+            }
+            return {
+              text: msg?.content?.trim() ?? "",
+              pendingToolCall: { name: fn.name, args },
+            };
+          }
+        }
+
         msgs.push(msg as Record<string, unknown>);
         for (const tc of toolCalls) {
           const fn = tc.function as { name: string; arguments?: string };

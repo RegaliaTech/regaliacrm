@@ -1,9 +1,22 @@
 import { getAiClient, type ChatMessage } from "@/lib/ai";
 import { getSettings } from "@/lib/settings";
-import { TOOL_DECLARATIONS, executeTool } from "@/lib/ai/tools";
-import type { SessionUser } from "@/lib/rbac";
+import {
+  TOOL_DECLARATIONS,
+  WRITE_TOOL_NAMES,
+  executeTool,
+  executeWriteTool,
+  summarizeWriteAction,
+} from "@/lib/ai/tools";
+import { can, WRITE_ROLES, type SessionUser } from "@/lib/rbac";
 
-export type AssistantReply = { reply: string };
+/** A mutating action the model proposed, awaiting user confirmation. */
+export type PendingAction = {
+  name: string;
+  args: Record<string, unknown>;
+  summary: string;
+};
+
+export type AssistantReply = { reply: string; pendingAction?: PendingAction };
 
 /**
  * System prompt establishing the assistant's persona and guardrails. The
@@ -42,11 +55,54 @@ export async function runAssistant(
     // Settings may be unavailable (e.g. DB offline in preview) — use the default.
   }
 
+  // Only privileged roles may be offered write tools. For everyone else we
+  // hide the write declarations entirely, so the model can't even propose a
+  // mutating action it would be blocked from running.
+  const allowWrites = can(user.role, WRITE_ROLES);
+
   const systemInstruction = buildSystemPrompt(user, companyName);
   const result = await getAiClient().chatWithTools(history, {
     systemInstruction,
-    tools: TOOL_DECLARATIONS,
+    tools: allowWrites
+      ? TOOL_DECLARATIONS
+      : TOOL_DECLARATIONS.filter((t) => !t.write),
+    writeToolNames: allowWrites ? WRITE_TOOL_NAMES : [],
     onToolCall: (name, args) => executeTool(name, args),
   });
+
+  if (result.pendingToolCall) {
+    const { name, args } = result.pendingToolCall;
+    return {
+      reply: result.text,
+      pendingAction: { name, args, summary: summarizeWriteAction(name, args) },
+    };
+  }
+
   return { reply: result.text };
+}
+
+/**
+ * Runs a write action the user has confirmed. The caller MUST have already
+ * verified the user's role. Returns a short human-readable outcome message.
+ */
+export async function runConfirmedAction(
+  user: SessionUser,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<{ reply: string }> {
+  const result = (await executeWriteTool(name, args, user)) as {
+    error?: string;
+  } & Record<string, unknown>;
+
+  if (result?.error) {
+    return { reply: `I couldn't do that: ${result.error}` };
+  }
+
+  if (name === "create_customer") {
+    return { reply: `Done — created customer “${result.name}”.` };
+  }
+  if (name === "schedule_followup") {
+    return { reply: `Done — scheduled a follow-up for ${result.customer}.` };
+  }
+  return { reply: "Done." };
 }

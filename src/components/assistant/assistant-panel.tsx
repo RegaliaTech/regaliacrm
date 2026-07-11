@@ -1,20 +1,27 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Sparkles, SendHorizontal, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   sendAssistantMessage,
+  confirmAssistantAction,
   type AssistantResult,
+  type ConfirmResult,
 } from "@/app/(app)/assistant/actions";
 import type { ChatMessage } from "@/lib/ai";
+import type { PendingAction } from "@/lib/ai/agent";
 
 type UiMessage = {
   id: number;
   role: "user" | "assistant";
   content: string;
   error?: boolean;
+  /** A mutating action the assistant proposed, awaiting the user's confirmation. */
+  pendingAction?: PendingAction;
+  /** Set once the user acts on `pendingAction`, so the buttons stop rendering. */
+  actionResolved?: "confirmed" | "cancelled";
 };
 
 const SUGGESTIONS = [
@@ -23,16 +30,23 @@ const SUGGESTIONS = [
   "Explain what quotations and follow-ups do",
 ];
 
+/** Where the popover anchors, computed from the trigger button's live rect. */
+type Anchor = { left: number; bottom: number; maxHeight: number };
+const DEFAULT_ANCHOR: Anchor = { left: 88, bottom: 88, maxHeight: 600 };
+
 export function AssistantPanel({
   open,
   onClose,
+  anchorRef,
 }: {
   open: boolean;
   onClose: () => void;
+  anchorRef?: RefObject<HTMLButtonElement | null>;
 }) {
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [anchor, setAnchor] = useState<Anchor>(DEFAULT_ANCHOR);
   const idRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -46,6 +60,24 @@ export function AssistantPanel({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  // Anchor the popover next to the trigger icon; recompute on resize.
+  useEffect(() => {
+    if (!open) return;
+    const compute = () => {
+      const el = anchorRef?.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setAnchor({
+        left: Math.round(rect.right + 12),
+        bottom: Math.round(window.innerHeight - rect.bottom),
+        maxHeight: Math.round(Math.min(600, rect.bottom - 16)),
+      });
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, [open, anchorRef]);
 
   // Focus the input and scroll to the newest message when opened/updated.
   useEffect(() => {
@@ -96,34 +128,80 @@ export function AssistantPanel({
               id: ++idRef.current,
               role: "assistant",
               content: result.reply,
+              pendingAction: result.pendingAction,
             },
       ]);
     });
+  };
+
+  const confirmPending = (msg: UiMessage) => {
+    const action = msg.pendingAction;
+    if (!action || isPending) return;
+
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msg.id ? { ...m, actionResolved: "confirmed" as const } : m,
+      ),
+    );
+
+    startTransition(async () => {
+      let result: ConfirmResult;
+      try {
+        result = await confirmAssistantAction(action.name, action.args);
+      } catch {
+        result = { error: "Something went wrong. Please try again." };
+      }
+      setMessages((prev) => [
+        ...prev,
+        "error" in result
+          ? {
+              id: ++idRef.current,
+              role: "assistant",
+              content: result.error,
+              error: true,
+            }
+          : { id: ++idRef.current, role: "assistant", content: result.reply },
+      ]);
+    });
+  };
+
+  const cancelPending = (msg: UiMessage) => {
+    setMessages((prev) => [
+      ...prev.map((m) =>
+        m.id === msg.id ? { ...m, actionResolved: "cancelled" as const } : m,
+      ),
+      {
+        id: ++idRef.current,
+        role: "assistant" as const,
+        content: "Okay, cancelled.",
+      },
+    ]);
   };
 
   if (typeof document === "undefined") return null;
 
   return createPortal(
     <div
-      className={cn(
-        "fixed inset-0 z-[70] transition-opacity duration-200",
-        open ? "opacity-100" : "pointer-events-none opacity-0",
-      )}
+      className={cn("fixed inset-0 z-[70]", open ? "" : "pointer-events-none")}
       aria-hidden={!open}
     >
-      {/* Scrim */}
-      <div
-        className="absolute inset-0 bg-slate-900/20 backdrop-blur-[2px]"
-        onClick={onClose}
-      />
+      {/* Transparent click-outside layer — closes the popover, no modal scrim. */}
+      <div className="absolute inset-0" onClick={onClose} />
 
-      {/* Drawer */}
+      {/* Floating window, anchored beside the dock's AI icon */}
       <div
         role="dialog"
         aria-label="AI Assistant"
+        style={{
+          left: anchor.left,
+          bottom: anchor.bottom,
+          maxHeight: anchor.maxHeight,
+        }}
         className={cn(
-          "glass-strong absolute right-0 top-0 flex h-full w-[min(92vw,26rem)] flex-col border-l border-[var(--border)] shadow-[var(--shadow-lg)] transition-transform duration-300 ease-out",
-          open ? "translate-x-0" : "translate-x-full",
+          "glass-strong fixed flex h-[min(80vh,600px)] w-[min(92vw,400px)] origin-bottom-left flex-col rounded-3xl border border-[var(--border)] shadow-[var(--shadow-lg)] transition-all duration-200 ease-out",
+          open
+            ? "scale-100 opacity-100"
+            : "pointer-events-none scale-95 opacity-0",
         )}
       >
         {/* Header */}
@@ -175,25 +253,61 @@ export function AssistantPanel({
             </div>
           ) : (
             messages.map((m) => (
-              <div
-                key={m.id}
-                className={cn(
-                  "flex",
-                  m.role === "user" ? "justify-end" : "justify-start",
-                )}
-              >
+              <div key={m.id} className="space-y-2">
                 <div
                   className={cn(
-                    "max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm",
-                    m.role === "user"
-                      ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white"
-                      : m.error
-                        ? "border border-red-200 bg-red-50 text-red-700"
-                        : "border border-[var(--border)] bg-white/80 text-slate-800",
+                    "flex",
+                    m.role === "user" ? "justify-end" : "justify-start",
                   )}
                 >
-                  {m.content}
+                  <div
+                    className={cn(
+                      "max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm",
+                      m.role === "user"
+                        ? "bg-gradient-to-br from-indigo-500 to-violet-600 text-white"
+                        : m.error
+                          ? "border border-red-200 bg-red-50 text-red-700"
+                          : "border border-[var(--border)] bg-white/80 text-slate-800",
+                    )}
+                  >
+                    {m.content}
+                  </div>
                 </div>
+
+                {/* Confirmation card for a proposed write action */}
+                {m.pendingAction && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] rounded-2xl border border-indigo-200 bg-indigo-50/70 px-3.5 py-3 text-sm">
+                      <p className="font-medium text-slate-800">
+                        {m.pendingAction.summary}
+                      </p>
+                      {m.actionResolved ? (
+                        <p className="mt-2 text-xs font-medium text-[var(--muted)]">
+                          {m.actionResolved === "confirmed"
+                            ? "Confirmed"
+                            : "Cancelled"}
+                        </p>
+                      ) : (
+                        <div className="mt-2.5 flex gap-2">
+                          <button
+                            onClick={() => confirmPending(m)}
+                            disabled={isPending}
+                            className="ios-press flex-1 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 px-3 py-1.5 text-xs font-semibold text-white shadow-[var(--glow-primary)] disabled:opacity-40"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => cancelPending(m)}
+                            disabled={isPending}
+                            className="ios-press flex-1 rounded-xl border border-[var(--border)] bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white disabled:opacity-40"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ))
           )}

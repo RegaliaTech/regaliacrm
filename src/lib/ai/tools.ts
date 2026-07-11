@@ -1,6 +1,8 @@
+import type { CustomerStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getCustomers } from "@/lib/customers";
 import { getQuotations } from "@/lib/quotations";
+import type { SessionUser } from "@/lib/rbac";
 
 /**
  * Provider-neutral tool declarations + handlers for the AI assistant.
@@ -167,7 +169,198 @@ export const TOOL_DECLARATIONS: ToolDeclaration[] = [
       },
     },
   },
+  {
+    name: "create_customer",
+    description:
+      "Create a new customer record. Use when the user asks to add a customer. The user will be asked to confirm before this runs.",
+    write: true,
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Full contact name (required)." },
+        email: { type: "string", description: "Email address." },
+        company: { type: "string", description: "Company name." },
+        phone: { type: "string", description: "Phone number." },
+        status: {
+          type: "string",
+          description: "Lifecycle status (defaults to LEAD).",
+          enum: ["LEAD", "ACTIVE", "INACTIVE", "CHURNED"],
+        },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "schedule_followup",
+    description:
+      "Schedule a follow-up for an existing customer. First find the customer's id with search_customers. The user will be asked to confirm before this runs.",
+    write: true,
+    parameters: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "The customer's id (from search_customers).",
+        },
+        caseSubject: {
+          type: "string",
+          description: "Short subject describing the follow-up.",
+        },
+        scheduledAt: {
+          type: "string",
+          description: "When to schedule it (ISO 8601). Defaults to now.",
+        },
+      },
+      required: ["customerId", "caseSubject"],
+    },
+  },
 ];
+
+/** Names of tools that mutate data — gated behind user confirmation + RBAC. */
+export const WRITE_TOOL_NAMES = TOOL_DECLARATIONS.filter((t) => t.write).map(
+  (t) => t.name,
+);
+
+// ---------------------------------------------------------------------------
+// Write tools (require confirmation + WRITE_ROLES)
+// ---------------------------------------------------------------------------
+
+type WriteToolHandler = (
+  args: Record<string, unknown>,
+  user: SessionUser,
+) => Promise<unknown>;
+
+const CUSTOMER_STATUSES: CustomerStatus[] = [
+  "LEAD",
+  "ACTIVE",
+  "INACTIVE",
+  "CHURNED",
+];
+
+async function createCustomer(
+  args: Record<string, unknown>,
+  user: SessionUser,
+): Promise<unknown> {
+  const name = String(args.name ?? "").trim();
+  if (!name) return { error: "A customer name is required." };
+
+  const email = args.email
+    ? String(args.email).toLowerCase().trim()
+    : null;
+  if (email) {
+    const existing = await prisma.customer.findFirst({ where: { email } });
+    if (existing) {
+      return { error: `A customer with email ${email} already exists.` };
+    }
+  }
+
+  const rawStatus = String(args.status ?? "").toUpperCase() as CustomerStatus;
+  const status = CUSTOMER_STATUSES.includes(rawStatus) ? rawStatus : "LEAD";
+
+  const customer = await prisma.customer.create({
+    data: {
+      name,
+      email,
+      company: args.company ? String(args.company) : null,
+      phone: args.phone ? String(args.phone) : null,
+      status,
+      // The dev preview stub has no real User row to own records.
+      ownerId: user.id === "preview-user" ? null : user.id,
+    },
+  });
+  return { id: customer.id, name: customer.name, status };
+}
+
+async function scheduleFollowUp(
+  args: Record<string, unknown>,
+  user: SessionUser,
+): Promise<unknown> {
+  const customerId = String(args.customerId ?? "").trim();
+  if (!customerId) {
+    return {
+      error:
+        "A customerId is required — look it up with search_customers first.",
+    };
+  }
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { id: true, name: true },
+  });
+  if (!customer) return { error: "No customer found with that id." };
+
+  const caseSubject =
+    String(args.caseSubject ?? "").trim() || `Follow up with ${customer.name}`;
+  const scheduledAt = args.scheduledAt
+    ? new Date(String(args.scheduledAt))
+    : new Date();
+  if (Number.isNaN(scheduledAt.getTime())) {
+    return { error: "The scheduledAt date is invalid." };
+  }
+
+  const followUp = await prisma.followUp.create({
+    data: {
+      customerId,
+      caseSubject,
+      emailSubject: caseSubject,
+      useAi: true,
+      status: "SCHEDULED",
+      scheduledAt,
+      creatorId: user.id === "preview-user" ? null : user.id,
+    },
+  });
+  return {
+    id: followUp.id,
+    customer: customer.name,
+    scheduledAt: scheduledAt.toISOString(),
+  };
+}
+
+const WRITE_TOOL_HANDLERS: Record<string, WriteToolHandler> = {
+  create_customer: createCustomer,
+  schedule_followup: scheduleFollowUp,
+};
+
+/** A plain-language description of a pending write, shown in the confirm card. */
+export function summarizeWriteAction(
+  name: string,
+  args: Record<string, unknown>,
+): string {
+  if (name === "create_customer") {
+    const bits = [args.name && `${args.name}`, args.company && `(${args.company})`, args.email]
+      .filter(Boolean)
+      .join(" ");
+    return `Create a new customer: ${bits}`;
+  }
+  if (name === "schedule_followup") {
+    const subj = args.caseSubject ? `: “${args.caseSubject}”` : "";
+    const when = args.scheduledAt ? ` for ${args.scheduledAt}` : "";
+    return `Schedule a follow-up${subj}${when}`;
+  }
+  return `Run ${name}`;
+}
+
+/**
+ * Executes a confirmed write tool. Caller MUST have already re-checked the
+ * user's role. Returns a JSON-serializable result (or `{ error }`).
+ */
+export async function executeWriteTool(
+  name: string,
+  args: Record<string, unknown>,
+  user: SessionUser,
+): Promise<unknown> {
+  const handler = WRITE_TOOL_HANDLERS[name];
+  if (!handler) return { error: `Unknown or non-write tool: ${name}` };
+  try {
+    return await handler(args ?? {}, user);
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "The action failed (the database may be unavailable).",
+    };
+  }
+}
 
 const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_pipeline_summary: getPipelineSummary,
