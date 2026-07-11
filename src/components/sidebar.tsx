@@ -127,47 +127,51 @@ export function Sidebar({ role }: { role: Role }) {
         {/* Divider */}
         <span className="my-1 h-px w-8 shrink-0 bg-gradient-to-r from-transparent via-slate-900/15 to-transparent" />
 
-        {/* AI Assistant Icon */}
-        <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
-          AI
-        </span>
+        {/* AI Assistant Icon — oversized tile with integrated label */}
         <button
           ref={aiButtonRef}
           type="button"
           onClick={() => setAssistantOpen((v) => !v)}
           title="AI Assistant"
-          className="group/ai relative flex h-[var(--dock-icon)] w-[var(--dock-icon)] shrink-0 items-center justify-center overflow-hidden rounded-[var(--dock-radius)] border border-white/50 bg-white/30 shadow-[0_6px_12px_-3px_rgba(15,23,42,0.25),inset_0_1px_1px_rgba(255,255,255,0.6)] backdrop-blur-xl backdrop-saturate-150 transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-110"
+          className="group/ai relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[16px] border border-white/50 bg-white/30 shadow-[0_6px_12px_-3px_rgba(15,23,42,0.25),inset_0_1px_1px_rgba(255,255,255,0.6)] backdrop-blur-xl backdrop-saturate-150 transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-110"
         >
           {/* Pulsing glow halo behind the glyph */}
           <span
-            className="ai-alive-glow pointer-events-none absolute inset-0 z-0 rounded-[var(--dock-radius)] group-hover/ai:[animation-duration:1.6s]"
+            className="ai-alive-glow pointer-events-none absolute inset-0 z-0 rounded-[16px] group-hover/ai:[animation-duration:1.6s]"
             style={{
               background:
-                "radial-gradient(circle at 50% 50%, rgba(139,92,246,0.65), rgba(99,102,241,0.3) 45%, transparent 70%)",
+                "radial-gradient(circle at 50% 42%, rgba(139,92,246,0.65), rgba(99,102,241,0.3) 45%, transparent 70%)",
             }}
           />
-          <span className="pointer-events-none absolute inset-x-0 top-0 z-20 h-1/2 rounded-t-[var(--dock-radius)] bg-gradient-to-b from-white/50 to-transparent" />
-          <span className="pointer-events-none absolute inset-0 z-20 rounded-[var(--dock-radius)] ring-1 ring-inset ring-white/40" />
-          <Image
-            src="/ai-assistant-icon.png"
-            alt="AI Assistant"
-            width={40}
-            height={40}
-            className="ai-alive-icon absolute inset-0 z-10 h-full w-full object-contain p-2 drop-shadow-[0_0_4px_rgba(139,92,246,0.55)] group-hover/ai:[animation-duration:1.6s]"
-          />
+          <span className="pointer-events-none absolute inset-x-0 top-0 z-20 h-1/2 rounded-t-[16px] bg-gradient-to-b from-white/50 to-transparent" />
+          <span className="pointer-events-none absolute inset-0 z-20 rounded-[16px] ring-1 ring-inset ring-white/40" />
+
+          {/* Icon + label breathe together */}
+          <span className="ai-alive-icon relative z-10 flex flex-col items-center group-hover/ai:[animation-duration:1.6s]">
+            <Image
+              src="/ai-assistant-icon.png"
+              alt="AI Assistant"
+              width={44}
+              height={44}
+              className="h-8 w-8 object-contain drop-shadow-[0_0_4px_rgba(139,92,246,0.55)]"
+            />
+            <span className="-mt-0.5 text-[8px] font-bold uppercase tracking-[0.18em] text-slate-500/80">
+              AI
+            </span>
+          </span>
 
           {/* Twinkling sparkles */}
           <span
             className="ai-alive-spark pointer-events-none absolute z-20 h-1 w-1 rounded-full bg-white shadow-[0_0_6px_2px_rgba(196,181,253,0.9)]"
-            style={{ top: "24%", left: "26%" }}
+            style={{ top: "18%", left: "22%" }}
           />
           <span
             className="ai-alive-spark pointer-events-none absolute z-20 h-[3px] w-[3px] rounded-full bg-white shadow-[0_0_5px_2px_rgba(196,181,253,0.9)]"
-            style={{ top: "30%", right: "24%", animationDelay: "0.9s" }}
+            style={{ top: "24%", right: "20%", animationDelay: "0.9s" }}
           />
           <span
             className="ai-alive-spark pointer-events-none absolute z-20 h-1 w-1 rounded-full bg-white shadow-[0_0_6px_2px_rgba(196,181,253,0.9)]"
-            style={{ bottom: "26%", left: "36%", animationDelay: "1.7s" }}
+            style={{ bottom: "28%", left: "30%", animationDelay: "1.7s" }}
           />
 
           {/* Tooltip */}
