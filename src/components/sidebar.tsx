@@ -135,6 +135,14 @@ export function Sidebar({ role }: { role: Role }) {
           title="AI Assistant"
           className="group/ai relative flex h-[var(--dock-icon)] w-[var(--dock-icon)] shrink-0 items-center justify-center overflow-hidden rounded-[var(--dock-radius)] border border-white/50 bg-white/30 shadow-[0_6px_12px_-3px_rgba(15,23,42,0.25),inset_0_1px_1px_rgba(255,255,255,0.6)] backdrop-blur-xl backdrop-saturate-150 transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-110"
         >
+          {/* Pulsing glow halo behind the glyph */}
+          <span
+            className="ai-alive-glow pointer-events-none absolute inset-0 z-0 rounded-[var(--dock-radius)] group-hover/ai:[animation-duration:1.6s]"
+            style={{
+              background:
+                "radial-gradient(circle at 50% 50%, rgba(139,92,246,0.65), rgba(99,102,241,0.3) 45%, transparent 70%)",
+            }}
+          />
           <span className="pointer-events-none absolute inset-x-0 top-0 z-20 h-1/2 rounded-t-[var(--dock-radius)] bg-gradient-to-b from-white/50 to-transparent" />
           <span className="pointer-events-none absolute inset-0 z-20 rounded-[var(--dock-radius)] ring-1 ring-inset ring-white/40" />
           <Image
@@ -142,7 +150,21 @@ export function Sidebar({ role }: { role: Role }) {
             alt="AI Assistant"
             width={40}
             height={40}
-            className="absolute inset-0 z-10 h-full w-full object-contain p-2"
+            className="ai-alive-icon absolute inset-0 z-10 h-full w-full object-contain p-2 drop-shadow-[0_0_4px_rgba(139,92,246,0.55)] group-hover/ai:[animation-duration:1.6s]"
+          />
+
+          {/* Twinkling sparkles */}
+          <span
+            className="ai-alive-spark pointer-events-none absolute z-20 h-1 w-1 rounded-full bg-white shadow-[0_0_6px_2px_rgba(196,181,253,0.9)]"
+            style={{ top: "24%", left: "26%" }}
+          />
+          <span
+            className="ai-alive-spark pointer-events-none absolute z-20 h-[3px] w-[3px] rounded-full bg-white shadow-[0_0_5px_2px_rgba(196,181,253,0.9)]"
+            style={{ top: "30%", right: "24%", animationDelay: "0.9s" }}
+          />
+          <span
+            className="ai-alive-spark pointer-events-none absolute z-20 h-1 w-1 rounded-full bg-white shadow-[0_0_6px_2px_rgba(196,181,253,0.9)]"
+            style={{ bottom: "26%", left: "36%", animationDelay: "1.7s" }}
           />
 
           {/* Tooltip */}
