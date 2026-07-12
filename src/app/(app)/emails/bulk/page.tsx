@@ -7,6 +7,7 @@ import { buttonClasses } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { ExportCsvButton } from "./export-csv-button";
 
 export default async function BulkEmailsPage() {
   await requireRole(WRITE_ROLES);
@@ -30,10 +31,11 @@ export default async function BulkEmailsPage() {
             Send a campaign to many customers at once.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link href="/emails" className={buttonClasses("ghost", "md")}>
             Back to emails
           </Link>
+          <ExportCsvButton />
           <Link href="/emails/bulk/new" className={buttonClasses("primary", "md")}>
             <Plus className="h-4 w-4" /> New campaign
           </Link>

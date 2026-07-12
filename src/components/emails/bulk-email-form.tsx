@@ -1,13 +1,17 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import type { CustomerStatus } from "@prisma/client";
+import { Upload } from "lucide-react";
 import {
   createBulkEmailAction,
+  importCustomersFromCsvAction,
   type BulkEmailFormState,
+  type ImportCustomersResult,
 } from "@/app/(app)/emails/bulk/actions";
 import type { BulkCustomerOption } from "@/lib/bulk-emails";
+import { parseCsv } from "@/lib/csv";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
@@ -17,6 +21,20 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { FormError } from "@/components/ui/form-error";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+
+/** Map a variety of common header names to our canonical field names. */
+function pickColumn(
+  headers: string[],
+  candidates: string[],
+): number {
+  const norm = (s: string) => s.trim().toLowerCase().replace(/[\s_-]+/g, "");
+  const canon = headers.map(norm);
+  for (const c of candidates) {
+    const idx = canon.indexOf(norm(c));
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
 
 const STATUSES: CustomerStatus[] = ["LEAD", "ACTIVE", "INACTIVE", "CHURNED"];
 
@@ -35,16 +53,136 @@ export function BulkEmailForm({
   const [search, setSearch] = useState("");
   const [useAi, setUseAi] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  /** Customers created/updated via CSV import — appended to the picker list. */
+  const [extraCustomers, setExtraCustomers] = useState<BulkCustomerOption[]>(
+    [],
+  );
+  const [importStats, setImportStats] = useState<ImportCustomersResult | null>(
+    null,
+  );
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importing, startImport] = useTransition();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const allCustomers = useMemo(
+    () => [...extraCustomers, ...customers],
+    [customers, extraCustomers],
+  );
+
+  const handleCsvUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportError(null);
+    setImportStats(null);
+    try {
+      const text = await file.text();
+      const { header, rows } = parseCsv(text, { hasHeader: true });
+
+      // Map common header aliases → our canonical fields.
+      const emailIdx =
+        pickColumn(header, ["email", "emailaddress", "mail", "mailid"]) ??
+        -1;
+      const nameIdx = pickColumn(header, [
+        "name",
+        "contactname",
+        "owner",
+        "ownername",
+        "contact",
+      ]);
+      const companyIdx = pickColumn(header, [
+        "company",
+        "companyname",
+        "business",
+        "organisation",
+        "organization",
+      ]);
+      const phoneIdx = pickColumn(header, [
+        "phone",
+        "phonenumber",
+        "mobile",
+        "mobilenumber",
+        "contactnumber",
+      ]);
+      const addressIdx = pickColumn(header, [
+        "address",
+        "location",
+        "companyaddress",
+      ]);
+      const websiteIdx = pickColumn(header, ["website", "url", "site"]);
+
+      // Fallback: if no header row matched, assume the first column is email.
+      const emailCol = emailIdx >= 0 ? emailIdx : 0;
+
+      const payload = rows
+        .map((r) => ({
+          email: (r[emailCol] ?? "").trim(),
+          name: nameIdx >= 0 ? (r[nameIdx] ?? "").trim() : undefined,
+          company: companyIdx >= 0 ? (r[companyIdx] ?? "").trim() : undefined,
+          phone: phoneIdx >= 0 ? (r[phoneIdx] ?? "").trim() : undefined,
+          address: addressIdx >= 0 ? (r[addressIdx] ?? "").trim() : undefined,
+          website: websiteIdx >= 0 ? (r[websiteIdx] ?? "").trim() : undefined,
+        }))
+        .filter((r) => r.email);
+
+      if (payload.length === 0) {
+        setImportError(
+          "No rows had an email. Make sure your CSV has an 'email' column (or put emails in the first column).",
+        );
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+
+      startImport(async () => {
+        try {
+          const stats = await importCustomersFromCsvAction(payload);
+          // Merge returned customers into the picker + auto-select them.
+          setExtraCustomers((prev) => {
+            const knownIds = new Set([
+              ...customers.map((c) => c.id),
+              ...prev.map((c) => c.id),
+            ]);
+            const additions = stats.customers
+              .filter((c) => !knownIds.has(c.id))
+              .map((c) => ({
+                id: c.id,
+                name: c.name,
+                company: c.company,
+                email: c.email,
+                status: c.status as CustomerStatus,
+                tags: c.tags,
+              }));
+            return [...additions, ...prev];
+          });
+          setSelected((prev) => {
+            const next = new Set(prev);
+            for (const c of stats.customers) next.add(c.id);
+            return next;
+          });
+          setImportStats(stats);
+        } catch (err) {
+          setImportError(
+            err instanceof Error ? err.message : "Import failed",
+          );
+        }
+      });
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const allTags = useMemo(() => {
     const set = new Set<string>();
-    customers.forEach((c) => c.tags.forEach((t) => set.add(t)));
+    allCustomers.forEach((c) => c.tags.forEach((t) => set.add(t)));
     return Array.from(set).sort();
-  }, [customers]);
+  }, [allCustomers]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return customers.filter((c) => {
+    return allCustomers.filter((c) => {
       if (statusFilter && c.status !== statusFilter) return false;
       if (tagFilter && !c.tags.includes(tagFilter)) return false;
       if (q) {
@@ -53,7 +191,7 @@ export function BulkEmailForm({
       }
       return true;
     });
-  }, [customers, statusFilter, tagFilter, search]);
+  }, [allCustomers, statusFilter, tagFilter, search]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -135,6 +273,52 @@ export function BulkEmailForm({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={handleCsvUpload}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={importing}
+                  className={buttonClasses("ghost", "sm")}
+                >
+                  <Upload className="h-4 w-4" />
+                  {importing ? "Importing…" : "Import companies (CSV)"}
+                </button>
+                <span className="text-xs text-[var(--muted)]">
+                  Columns: <code className="rounded bg-slate-100 px-1">email</code>{" "}
+                  (required), and any of{" "}
+                  <code className="rounded bg-slate-100 px-1">name</code>,{" "}
+                  <code className="rounded bg-slate-100 px-1">company</code>,{" "}
+                  <code className="rounded bg-slate-100 px-1">phone</code>,{" "}
+                  <code className="rounded bg-slate-100 px-1">address</code>,{" "}
+                  <code className="rounded bg-slate-100 px-1">website</code>.
+                </span>
+              </div>
+              {importError && (
+                <p className="text-xs text-red-600">{importError}</p>
+              )}
+              {importStats && (
+                <p className="text-xs text-slate-600">
+                  Imported: <b>{importStats.created}</b> new, <b>{importStats.updated}</b>{" "}
+                  updated
+                  {importStats.skipped > 0 && (
+                    <>, {importStats.skipped} unchanged</>
+                  )}
+                  {importStats.invalid > 0 && (
+                    <>, {importStats.invalid} invalid</>
+                  )}
+                  {importStats.errors.length > 0 && (
+                    <>, {importStats.errors.length} errored</>
+                  )}
+                  . All {importStats.customers.length} added to this campaign.
+                </p>
+              )}
               <div className="grid gap-3 sm:grid-cols-3">
                 <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                   <option value="">All statuses</option>
