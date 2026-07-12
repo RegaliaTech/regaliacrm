@@ -6,10 +6,12 @@ import type { CustomerStatus } from "@prisma/client";
 import { Upload } from "lucide-react";
 import {
   createBulkEmailAction,
-  importCustomersFromCsvAction,
   type BulkEmailFormState,
-  type ImportCustomersResult,
 } from "@/app/(app)/emails/bulk/actions";
+import {
+  importCustomersFromCsvAction,
+  type ImportCustomersResult,
+} from "@/app/(app)/customers/actions";
 import type { BulkCustomerOption } from "@/lib/bulk-emails";
 import { parseCsv } from "@/lib/csv";
 import { Input } from "@/components/ui/input";

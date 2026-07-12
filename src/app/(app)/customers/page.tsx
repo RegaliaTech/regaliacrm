@@ -13,6 +13,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SearchInput } from "@/components/ui/search-input";
+import { CustomersCsvButtons } from "./csv-buttons";
 
 type TabKey = "all" | "lead" | "active" | "inactive" | "churned";
 
@@ -66,12 +67,15 @@ export default async function CustomersPage({
         description="Manage leads and active accounts in one place."
         action={
           canWrite && (
-            <Link
-              href="/customers/new"
-              className={buttonClasses("primary", "md")}
-            >
-              <Plus className="h-4 w-4" /> New customer
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <CustomersCsvButtons />
+              <Link
+                href="/customers/new"
+                className={buttonClasses("primary", "md")}
+              >
+                <Plus className="h-4 w-4" /> New customer
+              </Link>
+            </div>
           )
         }
       />
