@@ -11,6 +11,9 @@ const credentialsSchema = z.object({
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // Trust the deployment host header (Vercel sits behind a proxy). Auto-enabled
+  // on Vercel, but set explicitly so host/redirect resolution is deterministic.
+  trustHost: true,
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [
