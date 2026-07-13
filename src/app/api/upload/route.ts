@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { put } from "@vercel/blob";
 import { requireUser, can, WRITE_ROLES } from "@/lib/rbac";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -38,12 +37,31 @@ export async function POST(req: Request) {
     );
   }
 
-  const bytes = Buffer.from(await file.arrayBuffer());
-  // Generated name only — never trust the client filename (path traversal).
-  const filename = `${randomUUID()}.${ext}`;
-  const dir = path.join(process.cwd(), "public", "uploads", "products");
-  await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, filename), bytes);
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return NextResponse.json(
+      { error: "Uploads are not configured (missing BLOB_READ_WRITE_TOKEN)." },
+      { status: 500 },
+    );
+  }
 
-  return NextResponse.json({ url: `/uploads/products/${filename}` });
+  // Generated name only — never trust the client filename (path traversal).
+  const pathname = `products/${randomUUID()}.${ext}`;
+
+  try {
+    // Upload straight to Vercel Blob so it persists on serverless (the local
+    // filesystem is read-only in production). Returns a public CDN URL.
+    const blob = await put(pathname, file, {
+      access: "public",
+      contentType: file.type,
+    });
+    return NextResponse.json({ url: blob.url });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to upload the file.",
+      },
+      { status: 502 },
+    );
+  }
 }
