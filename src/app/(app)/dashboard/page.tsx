@@ -24,19 +24,18 @@ import { buttonClasses } from "@/components/ui/button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatCard } from "@/components/stat-card";
 import { quotationStatusTone } from "@/lib/status";
-import { mockRecentQuotes, mockStats } from "@/lib/mock";
 
 export default async function DashboardPage() {
   const user = await requireUser();
 
   const [customers, products, quotations, followups, pipeline, recentQuotes] =
     await Promise.all([
-      safeQuery(() => prisma.customer.count(), mockStats.customers),
-      safeQuery(() => prisma.product.count(), mockStats.products),
-      safeQuery(() => prisma.quotation.count(), mockStats.quotations),
+      safeQuery(() => prisma.customer.count(), 0),
+      safeQuery(() => prisma.product.count(), 0),
+      safeQuery(() => prisma.quotation.count(), 0),
       safeQuery(
         () => prisma.followUp.count({ where: { status: "SCHEDULED" } }),
-        mockStats.pendingFollowups,
+        0,
       ),
       safeQuery(
         () =>
@@ -44,7 +43,7 @@ export default async function DashboardPage() {
             _sum: { total: true },
             where: { status: { in: ["SENT", "ACCEPTED"] } },
           }),
-        { _sum: { total: new Prisma.Decimal(mockStats.pipelineValue) } },
+        { _sum: { total: new Prisma.Decimal(0) } },
       ),
       safeQuery(
         () =>
@@ -53,7 +52,7 @@ export default async function DashboardPage() {
             orderBy: { createdAt: "desc" },
             include: { customer: true },
           }),
-        mockRecentQuotes as unknown as Prisma.QuotationGetPayload<{
+        [] as Prisma.QuotationGetPayload<{
           include: { customer: true };
         }>[],
       ),

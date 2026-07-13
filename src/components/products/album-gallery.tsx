@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import { ImageIcon, X, ChevronLeft, ChevronRight } from "lucide-react";
-import type { MockProductImage } from "@/lib/mock";
+import type { ProductImageView } from "@/lib/view-types";
 
 export function AlbumGallery({
   images,
   cover,
   name,
 }: {
-  images: MockProductImage[];
+  images: ProductImageView[];
   cover: string | null;
   name: string;
 }) {

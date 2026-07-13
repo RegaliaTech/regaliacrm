@@ -6,7 +6,6 @@ import type {
 } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { safeQuery } from "@/lib/safe-query";
-import { mockCustomers } from "@/lib/mock";
 
 export type CustomerView = {
   id: string;
@@ -61,7 +60,7 @@ function normalize(row: PrismaCustomerRow): CustomerView {
 export async function getCustomers(): Promise<CustomerView[]> {
   const res = await safeQuery(
     async () => (await fetchCustomerRows()).map(normalize),
-    mockCustomers,
+    [] as CustomerView[],
   );
   return res.data;
 }

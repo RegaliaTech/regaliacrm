@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/db";
 import { safeQuery } from "@/lib/safe-query";
-import { mockRecentQuotes, mockQuotationDetails } from "@/lib/mock";
 
 export type QuotationView = {
   id: string;
@@ -143,7 +142,7 @@ export async function getQuotations(): Promise<QuotationListItem[]> {
         },
       }));
     },
-    mockRecentQuotes as QuotationListItem[],
+    [] as QuotationListItem[],
   );
   return res.data;
 }
@@ -156,7 +155,7 @@ export async function getQuotation(
       const row = await fetchQuotationRow(id);
       return normalizeFetchedQuotation(row);
     },
-    mockQuotationDetails.find((q) => q.id === id) ?? null
+    null
   );
   return res.data;
 }
@@ -184,7 +183,7 @@ export async function getQuotationsByStatus(
         },
       }));
     },
-    mockRecentQuotes.filter((q) => q.status === status) as QuotationListItem[]
+    [] as QuotationListItem[]
   );
   return res.data;
 }

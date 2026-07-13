@@ -1,9 +1,8 @@
 import { prisma } from "@/lib/db";
 import { safeQuery } from "@/lib/safe-query";
-import { mockProducts, type MockProduct } from "@/lib/mock";
+import type { ProductView } from "@/lib/view-types";
 
-/** Unified, serializable shape used by the products UI. */
-export type ProductView = MockProduct;
+export type { ProductView } from "@/lib/view-types";
 
 type PrismaProductWithImages = Awaited<
   ReturnType<typeof fetchProductRows>
@@ -64,7 +63,7 @@ function normalize(row: PrismaProductWithImages): ProductView {
 export async function getProducts(): Promise<ProductView[]> {
   const res = await safeQuery(
     async () => (await fetchProductRows()).map(normalize),
-    mockProducts,
+    [],
   );
   return res.data;
 }
@@ -78,7 +77,7 @@ export async function getProduct(id: string): Promise<ProductView | null> {
       });
       return row ? normalize(row) : null;
     },
-    mockProducts.find((p) => p.id === id) ?? null,
+    null,
   );
   return res.data;
 }

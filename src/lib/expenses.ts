@@ -1,10 +1,9 @@
 import { prisma } from "@/lib/db";
 import { safeQuery } from "@/lib/safe-query";
-import { mockExpenses, type MockExpense } from "@/lib/mock";
+import type { ExpenseView } from "@/lib/view-types";
 import { Prisma } from "@prisma/client";
 
-/** Unified, serializable shape used by the expenses UI. */
-export type ExpenseView = MockExpense;
+export type { ExpenseView } from "@/lib/view-types";
 
 type PrismaExpenseWithCreator = Awaited<
   ReturnType<typeof fetchExpenseRows>
@@ -47,17 +46,9 @@ export async function getExpenses(filters?: {
         }
       : undefined;
 
-  const fallback = filters
-    ? mockExpenses.filter((e) => {
-        if (filters.from && e.incurredAt < filters.from) return false;
-        if (filters.to && e.incurredAt >= filters.to) return false;
-        return true;
-      })
-    : mockExpenses;
-
   const res = await safeQuery(
     async () => (await fetchExpenseRows(where)).map(normalize),
-    fallback,
+    [] as ExpenseView[],
   );
   return res.data;
 }
@@ -71,7 +62,7 @@ export async function getExpense(id: string): Promise<ExpenseView | null> {
       });
       return row ? normalize(row) : null;
     },
-    mockExpenses.find((e) => e.id === id) ?? null,
+    null,
   );
   return res.data;
 }
