@@ -1,9 +1,20 @@
-import type { CustomerStatus, ExpenseCategory } from "@prisma/client";
+import type {
+  CustomerStatus,
+  ExpenseCategory,
+  ProductKind,
+  QuotationStatus,
+} from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { getCustomers } from "@/lib/customers";
-import { getQuotations } from "@/lib/quotations";
+import { getCustomers, getCustomerDetail } from "@/lib/customers";
+import { getQuotations, getQuotation } from "@/lib/quotations";
 import { getExpenses } from "@/lib/expenses";
+import { getVendors } from "@/lib/vendors";
+import { getProducts } from "@/lib/products";
+import { getOutstandingInvoices, sendPaymentReminder } from "@/lib/payments";
+import { getCommissionReport } from "@/lib/commissions";
+import { getProductRoi } from "@/lib/roi";
+import { listFollowUps } from "@/lib/followups";
 import { getSettings } from "@/lib/settings";
 import { sendEmail } from "@/lib/mailer";
 import type { SessionUser } from "@/lib/rbac";
@@ -51,6 +62,34 @@ const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   "MAINTENANCE",
   "OTHER",
 ];
+
+const PRODUCT_KINDS: ProductKind[] = [
+  "MODEL",
+  "PHOTOGRAPHER",
+  "RENTAL",
+  "CUSTOM",
+];
+
+/**
+ * Resolve a quotation by its id (cuid) or its human number (e.g. "QUO-0007").
+ * Returns the id and current status, or null if nothing matches.
+ */
+async function resolveQuotation(
+  ref: string,
+): Promise<{ id: string; number: string; status: QuotationStatus } | null> {
+  const value = ref.trim();
+  if (!value) return null;
+  const byId = await prisma.quotation.findUnique({
+    where: { id: value },
+    select: { id: true, number: true, status: true },
+  });
+  if (byId) return byId;
+  const byNumber = await prisma.quotation.findFirst({
+    where: { number: { equals: value, mode: "insensitive" } },
+    select: { id: true, number: true, status: true },
+  });
+  return byNumber;
+}
 
 // ---------------------------------------------------------------------------
 // Read tools
@@ -134,6 +173,7 @@ async function listQuotations(args: Record<string, unknown>): Promise<unknown> {
   return {
     count: filtered.length,
     quotations: filtered.map((q) => ({
+      id: q.id,
       number: q.number,
       customer: q.customer.name,
       status: q.status,
@@ -190,6 +230,252 @@ async function getExpenseSummary(
       from: from?.toISOString() ?? null,
       to: to?.toISOString() ?? null,
     },
+  };
+}
+
+async function getCustomer360(args: Record<string, unknown>): Promise<unknown> {
+  const id = String(args.customerId ?? "").trim();
+  if (!id) {
+    return { error: "A customerId is required — find it with search_customers." };
+  }
+  const c = await getCustomerDetail(id);
+  if (!c) return { error: "No customer found with that id." };
+  return {
+    id: c.id,
+    name: c.name,
+    company: c.company,
+    email: c.email,
+    phone: c.phone,
+    status: c.status,
+    owner: c.ownerName,
+    tags: c.tags,
+    contacts: c.contacts.map((x) => ({
+      name: x.name,
+      title: x.title,
+      email: x.email,
+      phone: x.phone,
+      isPrimary: x.isPrimary,
+    })),
+    recentNotes: c.notes.slice(0, 5).map((n) => ({
+      body: n.body,
+      author: n.authorName,
+      at: n.createdAt.toISOString(),
+    })),
+    quotations: c.quotations.map((q) => ({
+      id: q.id,
+      number: q.number,
+      status: q.status,
+      total: q.total,
+      paid: q.paid,
+      balance: q.total - q.paid,
+    })),
+    recentEmails: c.emails.slice(0, 5).map((e) => ({
+      subject: e.subject,
+      status: e.status,
+      at: (e.sentAt ?? e.createdAt).toISOString(),
+    })),
+    followUps: c.followUps.map((f) => ({
+      subject: f.caseSubject,
+      status: f.status,
+      scheduledAt: f.scheduledAt.toISOString(),
+    })),
+  };
+}
+
+async function getQuotationDetail(
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  const ref = String(args.quotation ?? "").trim();
+  if (!ref) {
+    return { error: "A quotation id or number is required." };
+  }
+  const resolved = await resolveQuotation(ref);
+  if (!resolved) return { error: "No quotation found matching that id/number." };
+  const q = await getQuotation(resolved.id);
+  if (!q) return { error: "No quotation found matching that id/number." };
+  return {
+    id: q.id,
+    number: q.number,
+    customer: q.customer.name,
+    status: q.status,
+    currency: q.currency,
+    subtotal: q.subtotal,
+    discountTotal: q.discountTotal,
+    taxTotal: q.taxTotal,
+    total: q.total,
+    validUntil: q.validUntil?.toISOString() ?? null,
+    notes: q.notes,
+    items: q.items.map((i) => ({
+      description: i.description,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+      lineTotal: i.lineTotal,
+      product: i.product?.name ?? null,
+    })),
+  };
+}
+
+async function listVendors(args: Record<string, unknown>): Promise<unknown> {
+  const query = String(args.query ?? "").toLowerCase().trim();
+  const all = await getVendors();
+  const matched = (
+    query
+      ? all.filter((v) =>
+          [v.name, v.contactName, v.email, v.phone]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(query),
+        )
+      : all
+  ).slice(0, 20);
+  return {
+    count: matched.length,
+    vendors: matched.map((v) => ({
+      id: v.id,
+      name: v.name,
+      contact: v.contactName,
+      email: v.email,
+      phone: v.phone,
+      active: v.isActive,
+    })),
+  };
+}
+
+async function searchProducts(args: Record<string, unknown>): Promise<unknown> {
+  const query = String(args.query ?? "").toLowerCase().trim();
+  const kind =
+    typeof args.kind === "string" ? args.kind.toUpperCase() : undefined;
+  const all = await getProducts();
+  const matched = all
+    .filter((p) => (kind ? p.kind === kind : true))
+    .filter((p) =>
+      query
+        ? [p.name, p.sku, p.category, p.model, p.nationality]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(query)
+        : true,
+    )
+    .slice(0, 15);
+  return {
+    count: matched.length,
+    products: matched.map((p) => ({
+      id: p.id,
+      sku: p.sku,
+      name: p.name,
+      kind: p.kind,
+      category: p.category,
+      unitPrice: p.unitPrice,
+      currency: p.currency,
+      active: p.isActive,
+    })),
+  };
+}
+
+async function getReceivables(): Promise<unknown> {
+  const invoices = await getOutstandingInvoices();
+  const currency = invoices[0]?.currency ?? "AED";
+  const totalOutstanding = invoices.reduce((s, i) => s + i.balance, 0);
+  const overdue = invoices.filter(
+    (i) => i.daysOverdue !== null && i.daysOverdue > 0,
+  );
+  return {
+    count: invoices.length,
+    currency,
+    totalOutstanding,
+    overdueCount: overdue.length,
+    invoices: invoices.slice(0, 20).map((i) => ({
+      quotationId: i.id,
+      number: i.number,
+      customer: i.customer.name,
+      total: i.total,
+      paid: i.paid,
+      balance: i.balance,
+      daysOverdue: i.daysOverdue,
+      dueDate: i.dueDate?.toISOString() ?? null,
+    })),
+  };
+}
+
+/** Parse an optional YYYY-MM-DD range, defaulting to the current month. */
+function parseRange(args: Record<string, unknown>): {
+  from: Date;
+  to: Date;
+  error?: string;
+} {
+  const now = new Date();
+  const defaultFrom = new Date(now.getFullYear(), now.getMonth(), 1);
+  const defaultTo = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const from = args.from ? new Date(String(args.from)) : defaultFrom;
+  const to = args.to ? new Date(String(args.to)) : defaultTo;
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+    return { from: defaultFrom, to: defaultTo, error: "Invalid date — use YYYY-MM-DD." };
+  }
+  return { from, to };
+}
+
+async function getCommissions(args: Record<string, unknown>): Promise<unknown> {
+  const { from, to, error } = parseRange(args);
+  if (error) return { error };
+  const rows = await getCommissionReport(from, to);
+  return {
+    range: { from: from.toISOString(), to: to.toISOString() },
+    count: rows.length,
+    totalCommission: rows.reduce((s, r) => s + r.commission, 0),
+    reps: rows.map((r) => ({
+      name: r.userName,
+      revenue: r.revenue,
+      rate: r.rate,
+      commission: r.commission,
+    })),
+  };
+}
+
+async function getRoi(args: Record<string, unknown>): Promise<unknown> {
+  const { from, to, error } = parseRange(args);
+  if (error) return { error };
+  const rows = await getProductRoi(from, to);
+  return {
+    range: { from: from.toISOString(), to: to.toISOString() },
+    count: rows.length,
+    products: rows.slice(0, 20).map((r) => ({
+      name: r.productName,
+      sku: r.sku,
+      kind: r.kind,
+      cost: r.cost,
+      revenue: r.revenue,
+      roiPercent: r.roiPercent,
+      bookings: r.bookings,
+    })),
+  };
+}
+
+async function getFollowUps(args: Record<string, unknown>): Promise<unknown> {
+  const status =
+    typeof args.status === "string"
+      ? (args.status.toUpperCase() as
+          | "SCHEDULED"
+          | "SENT"
+          | "CANCELLED"
+          | "FAILED")
+      : undefined;
+  const customerId =
+    typeof args.customerId === "string" && args.customerId.trim()
+      ? args.customerId.trim()
+      : undefined;
+  const rows = await listFollowUps({ status, customerId });
+  return {
+    count: rows.length,
+    followUps: rows.slice(0, 25).map((f) => ({
+      id: f.id,
+      subject: f.caseSubject,
+      customer: f.customerName,
+      status: f.status,
+      scheduledAt: f.scheduledAt.toISOString(),
+      sentAt: f.sentAt?.toISOString() ?? null,
+    })),
   };
 }
 
@@ -253,6 +539,118 @@ export const TOOL_DECLARATIONS: ToolDeclaration[] = [
           type: "string",
           description: "Optional category filter.",
           enum: [...EXPENSE_CATEGORIES],
+        },
+      },
+    },
+  },
+  {
+    name: "get_customer_detail",
+    description:
+      "Get the full 360° view of one customer: profile, contacts, recent notes, their quotations (with paid/balance), recent emails, and follow-ups. First find the id with search_customers.",
+    parameters: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "The customer's id (from search_customers).",
+        },
+      },
+      required: ["customerId"],
+    },
+  },
+  {
+    name: "get_quotation_detail",
+    description:
+      "Get one quotation in full: customer, status, line items, subtotal, discount, tax, and total. Accepts either the quotation id or its number (e.g. 'QUO-0007').",
+    parameters: {
+      type: "object",
+      properties: {
+        quotation: {
+          type: "string",
+          description: "The quotation id or number.",
+        },
+      },
+      required: ["quotation"],
+    },
+  },
+  {
+    name: "list_vendors",
+    description:
+      "List or search vendors/suppliers by name, contact, email, or phone. Returns up to 20 with id, name, contact, and status.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Optional text to match against vendor fields.",
+        },
+      },
+    },
+  },
+  {
+    name: "search_products",
+    description:
+      "Search the product/talent catalog (models, photographers, rentals, custom items) by name, SKU, category, model, or nationality. Optionally filter by kind. Returns up to 15 with id, SKU, name, kind, and price.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Text to match against product fields.",
+        },
+        kind: {
+          type: "string",
+          description: "Optional product kind filter.",
+          enum: [...PRODUCT_KINDS],
+        },
+      },
+    },
+  },
+  {
+    name: "get_receivables",
+    description:
+      "List outstanding invoices (sent/accepted quotations with a balance due), including total outstanding and how many are overdue. Use for 'who owes us money?' or 'what's overdue?'.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "get_commission_report",
+    description:
+      "Per-rep sales commission for accepted quotations in a date range (defaults to the current month). Returns each rep's revenue, rate, and commission.",
+    parameters: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "Start date (YYYY-MM-DD)." },
+        to: { type: "string", description: "End date, exclusive (YYYY-MM-DD)." },
+      },
+    },
+  },
+  {
+    name: "get_product_roi",
+    description:
+      "Per-product ROI (revenue booked vs. recorded cost) for accepted quotations in a date range (defaults to the current month). Returns cost, revenue, ROI %, and bookings.",
+    parameters: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "Start date (YYYY-MM-DD)." },
+        to: { type: "string", description: "End date, exclusive (YYYY-MM-DD)." },
+      },
+    },
+  },
+  {
+    name: "list_followups",
+    description:
+      "List follow-ups, optionally filtered by status or customer. Returns up to 25 with id, subject, customer, status, and schedule.",
+    parameters: {
+      type: "object",
+      properties: {
+        status: {
+          type: "string",
+          description: "Optional status filter.",
+          enum: ["SCHEDULED", "SENT", "CANCELLED", "FAILED"],
+        },
+        customerId: {
+          type: "string",
+          description: "Optional customer id (from search_customers).",
         },
       },
     },
@@ -363,6 +761,134 @@ export const TOOL_DECLARATIONS: ToolDeclaration[] = [
         },
       },
       required: ["title", "amount"],
+    },
+  },
+  {
+    name: "update_customer_status",
+    description:
+      "Change a customer's lifecycle status (LEAD, ACTIVE, INACTIVE, CHURNED). First find the id with search_customers. The user will be asked to confirm.",
+    write: true,
+    parameters: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "The customer's id (from search_customers).",
+        },
+        status: {
+          type: "string",
+          description: "The new status.",
+          enum: ["LEAD", "ACTIVE", "INACTIVE", "CHURNED"],
+        },
+      },
+      required: ["customerId", "status"],
+    },
+  },
+  {
+    name: "add_customer_note",
+    description:
+      "Add a timestamped note to a customer's record. First find the id with search_customers. The user will be asked to confirm.",
+    write: true,
+    parameters: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "The customer's id (from search_customers).",
+        },
+        body: {
+          type: "string",
+          description: "The note text (required).",
+        },
+      },
+      required: ["customerId", "body"],
+    },
+  },
+  {
+    name: "record_payment",
+    description:
+      "Record a payment received against a quotation/invoice. Accepts the quotation id or number. Use for 'mark QUO-0007 as paid AED 5000'. The user will be asked to confirm.",
+    write: true,
+    parameters: {
+      type: "object",
+      properties: {
+        quotation: {
+          type: "string",
+          description: "The quotation id or number.",
+        },
+        amount: {
+          type: "number",
+          description: "Amount received (positive).",
+        },
+        method: {
+          type: "string",
+          description: "Payment method, e.g. 'Bank transfer', 'Cash', 'Card'.",
+        },
+        paidAt: {
+          type: "string",
+          description: "When it was paid (YYYY-MM-DD). Defaults to today.",
+        },
+        notes: {
+          type: "string",
+          description: "Optional notes.",
+        },
+      },
+      required: ["quotation", "amount"],
+    },
+  },
+  {
+    name: "update_quotation_status",
+    description:
+      "Change a quotation's status (DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED). Accepts the quotation id or number. The user will be asked to confirm.",
+    write: true,
+    parameters: {
+      type: "object",
+      properties: {
+        quotation: {
+          type: "string",
+          description: "The quotation id or number.",
+        },
+        status: {
+          type: "string",
+          description: "The new status.",
+          enum: [...QUOTATION_STATUSES],
+        },
+      },
+      required: ["quotation", "status"],
+    },
+  },
+  {
+    name: "create_vendor",
+    description:
+      "Create a new vendor/supplier record. Use when the user asks to add a vendor. The user will be asked to confirm.",
+    write: true,
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Vendor/company name (required)." },
+        contactName: { type: "string", description: "Primary contact person." },
+        email: { type: "string", description: "Contact email." },
+        phone: { type: "string", description: "Contact phone." },
+        address: { type: "string", description: "Address." },
+        notes: { type: "string", description: "Optional notes." },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "send_payment_reminder",
+    description:
+      "Email a payment reminder to the customer for an outstanding invoice. Accepts the quotation id or number. Get candidates from get_receivables first. The user will be asked to confirm before the email is sent.",
+    write: true,
+    parameters: {
+      type: "object",
+      properties: {
+        quotation: {
+          type: "string",
+          description: "The quotation id or number of the outstanding invoice.",
+        },
+      },
+      required: ["quotation"],
     },
   },
 ];
@@ -587,11 +1113,153 @@ async function logExpense(
   };
 }
 
+async function updateCustomerStatus(
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  const customerId = String(args.customerId ?? "").trim();
+  if (!customerId) {
+    return { error: "A customerId is required — find it with search_customers." };
+  }
+  const raw = String(args.status ?? "").toUpperCase() as CustomerStatus;
+  if (!CUSTOMER_STATUSES.includes(raw)) {
+    return { error: `Status must be one of: ${CUSTOMER_STATUSES.join(", ")}.` };
+  }
+  const existing = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { id: true, name: true },
+  });
+  if (!existing) return { error: "No customer found with that id." };
+  await prisma.customer.update({
+    where: { id: customerId },
+    data: { status: raw },
+  });
+  return { id: existing.id, name: existing.name, status: raw };
+}
+
+async function addCustomerNote(
+  args: Record<string, unknown>,
+  user: SessionUser,
+): Promise<unknown> {
+  const customerId = String(args.customerId ?? "").trim();
+  if (!customerId) {
+    return { error: "A customerId is required — find it with search_customers." };
+  }
+  const body = String(args.body ?? "").trim();
+  if (!body) return { error: "A note body is required." };
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { id: true, name: true },
+  });
+  if (!customer) return { error: "No customer found with that id." };
+  await prisma.customerNote.create({
+    data: {
+      customerId,
+      body,
+      authorId: user.id === "preview-user" ? null : user.id,
+    },
+  });
+  return { customer: customer.name };
+}
+
+async function recordPayment(
+  args: Record<string, unknown>,
+  user: SessionUser,
+): Promise<unknown> {
+  const ref = String(args.quotation ?? "").trim();
+  if (!ref) return { error: "A quotation id or number is required." };
+  const resolved = await resolveQuotation(ref);
+  if (!resolved) return { error: "No quotation found matching that id/number." };
+
+  const amount = Number(args.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { error: "Amount must be a positive number." };
+  }
+  const paidAt = args.paidAt ? new Date(String(args.paidAt)) : new Date();
+  if (Number.isNaN(paidAt.getTime())) {
+    return { error: "The paidAt date is invalid — use YYYY-MM-DD." };
+  }
+  const method = args.method ? String(args.method).trim() || null : null;
+  const notes = args.notes ? String(args.notes).trim() || null : null;
+
+  await prisma.payment.create({
+    data: {
+      quotationId: resolved.id,
+      amount,
+      paidAt,
+      method,
+      notes,
+      createdById: user.id === "preview-user" ? null : user.id,
+    },
+  });
+  return { number: resolved.number, amount };
+}
+
+async function updateQuotationStatus(
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  const ref = String(args.quotation ?? "").trim();
+  if (!ref) return { error: "A quotation id or number is required." };
+  const resolved = await resolveQuotation(ref);
+  if (!resolved) return { error: "No quotation found matching that id/number." };
+
+  const raw = String(args.status ?? "").toUpperCase();
+  if (!QUOTATION_STATUSES.includes(raw as (typeof QUOTATION_STATUSES)[number])) {
+    return { error: `Status must be one of: ${QUOTATION_STATUSES.join(", ")}.` };
+  }
+  await prisma.quotation.update({
+    where: { id: resolved.id },
+    data: { status: raw as QuotationStatus },
+  });
+  return { number: resolved.number, status: raw };
+}
+
+async function createVendor(args: Record<string, unknown>): Promise<unknown> {
+  const name = String(args.name ?? "").trim();
+  if (!name) return { error: "A vendor name is required." };
+  const email = args.email ? String(args.email).toLowerCase().trim() : null;
+  if (email && !z.string().email().safeParse(email).success) {
+    return { error: "The vendor email address is invalid." };
+  }
+  const vendor = await prisma.vendor.create({
+    data: {
+      name,
+      contactName: args.contactName ? String(args.contactName).trim() : null,
+      email,
+      phone: args.phone ? String(args.phone).trim() : null,
+      address: args.address ? String(args.address).trim() : null,
+      notes: args.notes ? String(args.notes).trim() : null,
+    },
+  });
+  return { id: vendor.id, name: vendor.name };
+}
+
+async function sendReminder(
+  args: Record<string, unknown>,
+  user: SessionUser,
+): Promise<unknown> {
+  const ref = String(args.quotation ?? "").trim();
+  if (!ref) return { error: "A quotation id or number is required." };
+  const resolved = await resolveQuotation(ref);
+  if (!resolved) return { error: "No quotation found matching that id/number." };
+  const senderId = user.id === "preview-user" ? null : user.id;
+  const result = await sendPaymentReminder(resolved.id, senderId);
+  if (!result.ok) {
+    return { error: result.error ?? "Failed to send the reminder." };
+  }
+  return { number: resolved.number };
+}
+
 const WRITE_TOOL_HANDLERS: Record<string, WriteToolHandler> = {
   create_customer: createCustomer,
   schedule_followup: scheduleFollowUp,
   send_email: sendCustomerEmail,
   log_expense: logExpense,
+  update_customer_status: updateCustomerStatus,
+  add_customer_note: addCustomerNote,
+  record_payment: recordPayment,
+  update_quotation_status: updateQuotationStatus,
+  create_vendor: createVendor,
+  send_payment_reminder: sendReminder,
 };
 
 /** A plain-language description of a pending write, shown in the confirm card. */
@@ -619,6 +1287,28 @@ export function summarizeWriteAction(
     const cat = args.category ? String(args.category).toUpperCase() : "OTHER";
     const when = args.incurredAt ? ` on ${args.incurredAt}` : "";
     return `Log ${cat} expense: “${args.title ?? ""}” — ${cur} ${args.amount ?? 0}${when}`;
+  }
+  if (name === "update_customer_status") {
+    return `Change customer status to ${String(args.status ?? "").toUpperCase()}`;
+  }
+  if (name === "add_customer_note") {
+    const preview = String(args.body ?? "").slice(0, 60);
+    return `Add a note to the customer: “${preview}${preview.length >= 60 ? "…" : ""}”`;
+  }
+  if (name === "record_payment") {
+    return `Record a payment of ${args.amount ?? 0} against quotation ${args.quotation ?? ""}`;
+  }
+  if (name === "update_quotation_status") {
+    return `Set quotation ${args.quotation ?? ""} to ${String(args.status ?? "").toUpperCase()}`;
+  }
+  if (name === "create_vendor") {
+    const bits = [args.name, args.contactName && `(${args.contactName})`, args.email]
+      .filter(Boolean)
+      .join(" ");
+    return `Create a new vendor: ${bits}`;
+  }
+  if (name === "send_payment_reminder") {
+    return `Email a payment reminder for quotation ${args.quotation ?? ""}`;
   }
   return `Run ${name}`;
 }
@@ -651,6 +1341,14 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   search_customers: searchCustomers,
   list_quotations: listQuotations,
   get_expense_summary: getExpenseSummary,
+  get_customer_detail: getCustomer360,
+  get_quotation_detail: getQuotationDetail,
+  list_vendors: listVendors,
+  search_products: searchProducts,
+  get_receivables: getReceivables,
+  get_commission_report: getCommissions,
+  get_product_roi: getRoi,
+  list_followups: getFollowUps,
 };
 
 /**

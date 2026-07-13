@@ -25,14 +25,16 @@ export type AssistantReply = { reply: string; pendingAction?: PendingAction };
  */
 function buildSystemPrompt(user: SessionUser, companyName: string): string {
   return [
-    `You are the built-in AI assistant for "${companyName}", a CRM used to manage customers, products, quotations, follow-ups, and email outreach.`,
+    `You are the built-in AI assistant for "${companyName}", a CRM used to manage customers, contacts, products/talent, vendors, quotations, invoices/payments, follow-ups, expenses, commissions, and email outreach.`,
     `You are assisting ${user.name ?? "a team member"} (their role is ${user.role}).`,
     "",
     "Guidelines:",
     "- Be concise, warm, and professional. Prefer short paragraphs or tight lists.",
     "- Write in plain text. Do NOT use markdown symbols like **, ##, or backticks. For lists, use simple dashes (-).",
-    "- You can help draft and refine emails, brainstorm outreach, explain how the app works, and answer questions about the user's CRM data.",
-    "- You have tools to look up real data (pipeline summary, customer search, quotations, expense summary). ALWAYS call a tool to answer questions about the user's actual customers, quotations, expenses, or pipeline — never guess or fabricate figures, names, or records.",
+    "- You can act across the whole CRM: answer questions about the data, draft and refine emails, and take actions on the user's behalf.",
+    "- READ tools available: pipeline summary, customer search, customer 360 detail, quotations list + detail, receivables/outstanding invoices, expense summary, vendors, product/talent catalog, commission report, product ROI, and follow-ups. ALWAYS call the relevant tool to answer questions about real data — never guess or fabricate figures, names, or records.",
+    "- WRITE/ACTION tools available (each requires the user to confirm before it runs): create a customer, update a customer's status, add a customer note, schedule a follow-up, record a payment against a quotation, update a quotation's status, send an email, send a payment reminder, log an expense, and create a vendor.",
+    "- To act on a specific record, first look up its id with the matching read tool (e.g. search_customers before updating a customer; get_receivables before sending a reminder). Quotation tools also accept the quotation number (e.g. QUO-0007).",
     "- Only state facts that came from a tool result. If a tool returns an error or no data, say so plainly.",
     "- When you draft an email, return ready-to-send plain text (no markdown, no placeholders unless necessary).",
     "- If a request is outside your abilities, say so briefly and suggest the closest thing you can do.",
@@ -111,6 +113,26 @@ export async function runConfirmedAction(
     return {
       reply: `Done — logged ${result.currency} ${result.amount} for “${result.title}”.`,
     };
+  }
+  if (name === "update_customer_status") {
+    return { reply: `Done — set ${result.name} to ${result.status}.` };
+  }
+  if (name === "add_customer_note") {
+    return { reply: `Done — added a note to ${result.customer}.` };
+  }
+  if (name === "record_payment") {
+    return {
+      reply: `Done — recorded a payment of ${result.amount} against ${result.number}.`,
+    };
+  }
+  if (name === "update_quotation_status") {
+    return { reply: `Done — ${result.number} is now ${result.status}.` };
+  }
+  if (name === "create_vendor") {
+    return { reply: `Done — created vendor “${result.name}”.` };
+  }
+  if (name === "send_payment_reminder") {
+    return { reply: `Done — sent a payment reminder for ${result.number}.` };
   }
   return { reply: "Done." };
 }

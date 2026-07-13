@@ -183,7 +183,7 @@ export function QuotationPDF({ data }: { data: QuotationPDFData }) {
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.companyName}>Regalia CMS</Text>
+          <Text style={styles.companyName}>Regalia CRM</Text>
           <Text style={styles.quotationNumber}>Quotation {data.number}</Text>
           <View style={styles.row}>
             <Text style={styles.label}>Status:</Text>

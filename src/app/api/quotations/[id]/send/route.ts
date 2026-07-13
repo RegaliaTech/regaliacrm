@@ -69,7 +69,7 @@ export async function POST(
     const pdfBuffer = await generateQuotationPDF(pdfData);
 
     // Compose email
-    const subject = `Quotation ${quotation.number} from Regalia CMS`;
+    const subject = `Quotation ${quotation.number} from Regalia CRM`;
     const body = `Dear ${quotation.customer.name},
 
 Please find attached quotation ${quotation.number} for your review.
@@ -82,7 +82,7 @@ ${quotation.notes ? `\nNotes:\n${quotation.notes}\n` : ""}
 If you have any questions or need clarification, please don't hesitate to contact us.
 
 Best regards,
-Regalia CMS Team`;
+Regalia CRM Team`;
 
     // Send email with PDF attachment
     await sendEmail({

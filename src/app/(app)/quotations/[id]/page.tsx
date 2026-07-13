@@ -66,7 +66,7 @@ export default async function QuotationDetailPage({
               </a>
               {quotation.customer.email && (
                 <a
-                  href={`mailto:${quotation.customer.email}?subject=${encodeURIComponent(`Quotation ${quotation.number} from Regalia CMS`)}&body=${encodeURIComponent(`Dear ${quotation.customer.name},
+                  href={`mailto:${quotation.customer.email}?subject=${encodeURIComponent(`Quotation ${quotation.number} from Regalia CRM`)}&body=${encodeURIComponent(`Dear ${quotation.customer.name},
 
 Please find attached quotation ${quotation.number} for your review.
 
@@ -79,7 +79,7 @@ ${quotation.notes ? `Notes:\n${quotation.notes}\n\n` : ""}Please download the PD
 If you have any questions or need clarification, please don't hesitate to contact us.
 
 Best regards,
-Regalia CMS Team`)}`}
+Regalia CRM Team`)}`}
                   className={buttonClasses("primary", "sm")}
                 >
                   <Send className="h-4 w-4" /> Send via Email

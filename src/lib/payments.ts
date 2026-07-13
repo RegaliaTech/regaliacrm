@@ -109,7 +109,7 @@ Balance due: ${inv.currency} ${inv.balance.toFixed(2)}
 Please arrange payment at your earliest convenience. If you have already paid, kindly disregard this message.
 
 Best regards,
-Regalia CMS Team`;
+Regalia CRM Team`;
   return { subject, body };
 }
 

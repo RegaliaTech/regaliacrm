@@ -1,5 +1,5 @@
-// Regalia CMS — Prisma schema
-// Single-company internal CMS: users/roles, customers, products,
+// Regalia CRM — Prisma schema
+// Single-company internal CRM: users/roles, customers, products,
 // quotations, emails, and automated follow-ups.
 
 generator client {
@@ -584,7 +584,7 @@ model Settings {
   id String @id @default(cuid())
 
   // Company/Business Information
-  companyName    String  @default("Regalia CMS")
+  companyName    String  @default("Regalia CRM")
   companyLogo    String?
   companyAddress String?
   companyPhone   String?

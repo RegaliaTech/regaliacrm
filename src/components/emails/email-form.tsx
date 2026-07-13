@@ -153,7 +153,7 @@ export function EmailForm({
                   required
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Your quotation from Regalia CMS"
+                  placeholder="Your quotation from Regalia CRM"
                 />
               </div>
               <div>

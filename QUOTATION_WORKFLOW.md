@@ -58,7 +58,7 @@ When editing a draft:
 This opens your default email client (Gmail, Outlook, Apple Mail, etc.) with:
 
 ✅ **Pre-filled recipient:** Customer's email address  
-✅ **Pre-filled subject:** "Quotation [NUMBER] from Regalia CMS"  
+✅ **Pre-filled subject:** "Quotation [NUMBER] from Regalia CRM"  
 ✅ **Pre-filled body:** Professional email with quotation details  
 ✅ **PDF download link:** Link for customer to download the PDF
 

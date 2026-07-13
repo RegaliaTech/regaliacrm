@@ -37,7 +37,7 @@ type Settings = {
 // Default settings to use before migration
 const getDefaultSettings = (): Settings => ({
   id: "mock-settings",
-  companyName: "Regalia CMS",
+  companyName: "Regalia CRM",
   companyLogo: null,
   companyAddress: null,
   companyPhone: null,
@@ -94,7 +94,7 @@ export async function getSettings(): Promise<Settings> {
       // Create default settings on first access
       const created = await prisma.settings.create({
         data: {
-          companyName: "Regalia CMS",
+          companyName: "Regalia CRM",
           currency: "AED",
           defaultTaxRate: 5,
           quotationPrefix: "QUO-",

@@ -128,7 +128,7 @@ export default function EmailSettings({ settings }: { settings: Settings }) {
             id="smtpFromName"
             name="smtpFromName"
             defaultValue={settings.smtpFromName ?? ""}
-            placeholder="Regalia CMS"
+            placeholder="Regalia CRM"
           />
         </div>
 

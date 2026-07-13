@@ -224,7 +224,7 @@ export async function sendFollowUpNow(followUpId: string): Promise<{ error?: str
           purpose: followUp.caseSubject,
           customerName: followUp.customer.name,
           company: followUp.customer.company || undefined,
-          senderName: "Regalia CMS Team",
+          senderName: "Regalia CRM Team",
           tone: "friendly",
           context: followUp.notes || undefined,
         });
@@ -236,7 +236,7 @@ export async function sendFollowUpNow(followUpId: string): Promise<{ error?: str
         console.error("AI generation failed, using fallback:", aiError);
         // Fall back to template if AI fails
         if (!emailBody) {
-          emailBody = `Dear ${followUp.customer.name},\n\nThis is a follow-up regarding: ${followUp.caseSubject}\n\n${followUp.notes || ""}\n\nBest regards,\nRegalia CMS Team`;
+          emailBody = `Dear ${followUp.customer.name},\n\nThis is a follow-up regarding: ${followUp.caseSubject}\n\n${followUp.notes || ""}\n\nBest regards,\nRegalia CRM Team`;
         }
       }
     }

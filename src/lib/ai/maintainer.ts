@@ -181,7 +181,7 @@ export async function runMaintainer(options?: {
         purpose: gap.caseSubject,
         customerName: customer.name,
         company: customer.company ?? undefined,
-        senderName: "Regalia CMS Team",
+        senderName: "Regalia CRM Team",
         tone: "friendly",
         context: gap.context,
       });

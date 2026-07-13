@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
               purpose: followUp.caseSubject,
               customerName: followUp.customer.name,
               company: followUp.customer.company || undefined,
-              senderName: "Regalia CMS Team",
+              senderName: "Regalia CRM Team",
               tone: "friendly",
               context: followUp.notes || undefined,
             });
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
             console.error(`[Follow-up Worker] AI generation failed for ${followUp.id}:`, aiError);
             // Use fallback template
             if (!emailBody) {
-              emailBody = `Dear ${followUp.customer.name},\n\nThis is a follow-up regarding: ${followUp.caseSubject}\n\n${followUp.notes || ""}\n\nBest regards,\nRegalia CMS Team`;
+              emailBody = `Dear ${followUp.customer.name},\n\nThis is a follow-up regarding: ${followUp.caseSubject}\n\n${followUp.notes || ""}\n\nBest regards,\nRegalia CRM Team`;
             }
           }
         }
@@ -197,7 +197,7 @@ export async function GET(req: NextRequest) {
               purpose: step.caseSubject,
               customerName: step.customer.name,
               company: step.customer.company || undefined,
-              senderName: "Regalia CMS Team",
+              senderName: "Regalia CRM Team",
               tone: step.tone as "friendly" | "formal" | "concise",
               context: step.notes || undefined,
               priorEmails: step.priorEmails,
@@ -214,7 +214,7 @@ export async function GET(req: NextRequest) {
         }
 
         if (!body) {
-          body = `Dear ${step.customer.name},\n\nI wanted to follow up regarding: ${step.caseSubject}.\n\n${step.notes || ""}\n\nBest regards,\nRegalia CMS Team`;
+          body = `Dear ${step.customer.name},\n\nI wanted to follow up regarding: ${step.caseSubject}.\n\n${step.notes || ""}\n\nBest regards,\nRegalia CRM Team`;
         }
 
         await sendEmail({ to: step.customer.email, subject, body });
