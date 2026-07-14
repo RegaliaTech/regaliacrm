@@ -94,10 +94,6 @@ export default async function LoginPage() {
           </div>
 
           <LoginForm />
-
-          <p className="mt-6 rounded-xl bg-[var(--accent)] px-4 py-3 text-center text-xs text-[var(--primary)]">
-            Demo login: <strong>admin@regalia.test</strong> / password123
-          </p>
         </div>
       </div>
     </div>
