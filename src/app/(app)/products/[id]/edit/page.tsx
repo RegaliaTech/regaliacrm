@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { requireRole, WRITE_ROLES } from "@/lib/rbac";
-import { getProduct } from "@/lib/products";
+import { getProduct, getCategories } from "@/lib/products";
 import { ProductForm } from "@/components/products/product-form";
 import { deleteProduct } from "@/app/(app)/products/actions";
 import { buttonClasses } from "@/components/ui/button";
@@ -16,6 +16,7 @@ export default async function EditProductPage({
   const { id } = await params;
   const product = await getProduct(id);
   if (!product) notFound();
+  const categories = (await getCategories()).map((c) => c.name);
 
   return (
     <div className="animate-in mx-auto max-w-5xl space-y-6">
@@ -38,7 +39,7 @@ export default async function EditProductPage({
           </button>
         </form>
       </div>
-      <ProductForm product={product} />
+      <ProductForm product={product} categories={categories} />
     </div>
   );
 }

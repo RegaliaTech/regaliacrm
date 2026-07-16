@@ -32,6 +32,7 @@ function normalize(row: PrismaProductWithImages): ProductView {
     model: row.model,
     figure: row.figure,
     category: row.category,
+    tier: row.tier,
     description: row.description,
     coverImage: row.coverImage,
     specs: (row.specs as Record<string, string> | null) ?? null,
@@ -63,6 +64,20 @@ function normalize(row: PrismaProductWithImages): ProductView {
 export async function getProducts(): Promise<ProductView[]> {
   const res = await safeQuery(
     async () => (await fetchProductRows()).map(normalize),
+    [],
+  );
+  return res.data;
+}
+
+export type CategoryView = { id: string; name: string };
+
+export async function getCategories(): Promise<CategoryView[]> {
+  const res = await safeQuery(
+    async () =>
+      prisma.productCategory.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
     [],
   );
   return res.data;

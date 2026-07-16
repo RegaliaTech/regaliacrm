@@ -93,6 +93,11 @@ export default async function ProductDetailPage({
                 {productKindLabel(product.kind)}
               </Badge>
               {product.category && <Badge>{product.category}</Badge>}
+              {product.tier && (
+                <Badge tone="primary">
+                  {product.tier.charAt(0) + product.tier.slice(1).toLowerCase()}
+                </Badge>
+              )}
               {!product.isActive && <Badge tone="muted">Inactive</Badge>}
               <Badge tone="muted">SKU {product.sku}</Badge>
             </div>

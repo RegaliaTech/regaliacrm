@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { Package, Plus } from "lucide-react";
 import { requireUser, can, WRITE_ROLES } from "@/lib/rbac";
-import { getProducts } from "@/lib/products";
+import { getProducts, getCategories } from "@/lib/products";
 import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SearchInput } from "@/components/ui/search-input";
 import { ProductCard } from "@/components/products/product-card";
+import { CategoryManager } from "@/components/products/category-manager";
 import { cn } from "@/lib/utils";
 import type { ProductKind } from "@prisma/client";
 
@@ -33,6 +34,7 @@ export default async function ProductsPage({
   const canWrite = can(user.role, WRITE_ROLES);
 
   const all = await getProducts();
+  const categories = await getCategories();
   const activeKind = TABS.find((t) => t.key === activeTab)?.kind;
 
   const products = all.filter((p) => {
@@ -116,6 +118,9 @@ export default async function ProductsPage({
           hidden={activeTab !== "all" ? { tab: activeTab } : undefined}
         />
       </div>
+
+      {/* Categories */}
+      <CategoryManager categories={categories} canWrite={canWrite} />
 
       {/* Grid */}
       {products.length === 0 ? (

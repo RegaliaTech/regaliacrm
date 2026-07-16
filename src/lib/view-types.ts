@@ -1,4 +1,4 @@
-import type { ExpenseCategory, ProductKind } from "@prisma/client";
+import type { ExpenseCategory, ProductKind, ProductTier } from "@prisma/client";
 
 /**
  * Plain, serializable view shapes shared between the data layer and the UI.
@@ -21,6 +21,7 @@ export type ProductView = {
   model: string | null;
   figure: string | null;
   category: string | null;
+  tier: ProductTier | null;
   description: string | null;
   coverImage: string | null;
   specs: Record<string, string> | null;

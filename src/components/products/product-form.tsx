@@ -25,13 +25,25 @@ import type { ProductKind } from "@prisma/client";
 
 type SpecRow = { key: string; value: string };
 
-export function ProductForm({ product }: { product?: ProductView }) {
+export function ProductForm({
+  product,
+  categories = [],
+}: {
+  product?: ProductView;
+  categories?: string[];
+}) {
   const [state, formAction, pending] = useActionState<
     ProductFormState,
     FormData
   >(saveProduct, {});
 
   const [kind, setKind] = React.useState<ProductKind>(product?.kind ?? "MODEL");
+  // Show the product's current category even if it predates the managed list.
+  const categoryOptions = React.useMemo(() => {
+    const set = new Set(categories);
+    if (product?.category) set.add(product.category);
+    return [...set];
+  }, [categories, product?.category]);
   const [images, setImages] = React.useState<AlbumImage[]>(
     product?.images.map((i) => ({ url: i.url, caption: i.caption ?? "" })) ??
       [],
@@ -122,13 +134,32 @@ export function ProductForm({ product }: { product?: ProductView }) {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="tier">Tier</Label>
+                  <Select
+                    id="tier"
+                    name="tier"
+                    defaultValue={product?.tier ?? ""}
+                  >
+                    <option value="">— None —</option>
+                    <option value="BASIC">Basic</option>
+                    <option value="AMATEUR">Amateur</option>
+                    <option value="PRO">Pro</option>
+                  </Select>
+                </div>
+                <div>
                   <Label htmlFor="category">Category</Label>
-                  <Input
+                  <Select
                     id="category"
                     name="category"
                     defaultValue={product?.category ?? ""}
-                    placeholder="Bridal Gowns"
-                  />
+                  >
+                    <option value="">— Select category —</option>
+                    {categoryOptions.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
                 {!product && (
                   <div>

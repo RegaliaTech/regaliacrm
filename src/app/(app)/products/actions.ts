@@ -24,6 +24,10 @@ const productSchema = z.object({
   model: z.string().optional(),
   figure: z.string().optional(),
   category: z.string().optional(),
+  tier: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(["BASIC", "AMATEUR", "PRO"]).optional(),
+  ),
   description: z.string().optional(),
   height: z.string().optional(),
   weight: z.string().optional(),
@@ -107,6 +111,7 @@ export async function saveProduct(
     model: d.model || null,
     figure: d.figure || null,
     category: d.category || null,
+    tier: d.tier ?? null,
     description: d.description || null,
     height: isTalent ? d.height || null : null,
     weight: isTalent ? d.weight || null : null,
@@ -173,6 +178,43 @@ export async function saveProduct(
   revalidatePath("/products");
   if (productId) revalidatePath(`/products/${productId}`);
   redirect(productId ? `/products/${productId}` : "/products");
+}
+
+export type CategoryFormState = { error?: string };
+
+export async function createCategory(
+  _prev: CategoryFormState,
+  formData: FormData,
+): Promise<CategoryFormState> {
+  await requireRole(WRITE_ROLES);
+  const name = (formData.get("name")?.toString() ?? "").trim();
+  if (!name) return { error: "Category name is required" };
+  try {
+    await prisma.productCategory.upsert({
+      where: { name },
+      create: { name },
+      update: {},
+    });
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Failed to add category",
+    };
+  }
+  revalidatePath("/products");
+  revalidatePath("/products/new");
+  return {};
+}
+
+export async function deleteCategory(formData: FormData): Promise<void> {
+  await requireRole(WRITE_ROLES);
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) return;
+  try {
+    await prisma.productCategory.delete({ where: { id } });
+  } catch {
+    // ignore — DB may be offline in preview
+  }
+  revalidatePath("/products");
 }
 
 export async function deleteProduct(formData: FormData): Promise<void> {
