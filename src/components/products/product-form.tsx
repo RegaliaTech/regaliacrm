@@ -27,10 +27,8 @@ type SpecRow = { key: string; value: string };
 
 export function ProductForm({
   product,
-  categories = [],
 }: {
   product?: ProductView;
-  categories?: string[];
 }) {
   const [state, formAction, pending] = useActionState<
     ProductFormState,
@@ -38,12 +36,6 @@ export function ProductForm({
   >(saveProduct, {});
 
   const [kind, setKind] = React.useState<ProductKind>(product?.kind ?? "MODEL");
-  // Show the product's current category even if it predates the managed list.
-  const categoryOptions = React.useMemo(() => {
-    const set = new Set(categories);
-    if (product?.category) set.add(product.category);
-    return [...set];
-  }, [categories, product?.category]);
   const [images, setImages] = React.useState<AlbumImage[]>(
     product?.images.map((i) => ({ url: i.url, caption: i.caption ?? "" })) ??
       [],
@@ -135,21 +127,6 @@ export function ProductForm({
                     <option value="BASIC">Basic</option>
                     <option value="AMATEUR">Amateur</option>
                     <option value="PRO">Pro</option>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="category">Category</Label>
-                  <Select
-                    id="category"
-                    name="category"
-                    defaultValue={product?.category ?? ""}
-                  >
-                    <option value="">— Select category —</option>
-                    {categoryOptions.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
                   </Select>
                 </div>
                 {!product && (

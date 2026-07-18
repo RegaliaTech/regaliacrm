@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { requireRole, WRITE_ROLES } from "@/lib/rbac";
-import { getCategories } from "@/lib/products";
 import { ProductForm } from "@/components/products/product-form";
 
 export default async function NewProductPage() {
   await requireRole(WRITE_ROLES);
-  const categories = (await getCategories()).map((c) => c.name);
 
   return (
     <div className="animate-in mx-auto max-w-5xl space-y-6">
@@ -24,7 +22,7 @@ export default async function NewProductPage() {
           Add a model, rental equipment, or a custom creation.
         </p>
       </div>
-      <ProductForm categories={categories} />
+      <ProductForm />
     </div>
   );
 }
