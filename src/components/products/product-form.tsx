@@ -125,15 +125,6 @@ export function ProductForm({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="figure">Figure / silhouette</Label>
-                  <Input
-                    id="figure"
-                    name="figure"
-                    defaultValue={product?.figure ?? ""}
-                    placeholder="A-Line"
-                  />
-                </div>
-                <div>
                   <Label htmlFor="tier">Tier</Label>
                   <Select
                     id="tier"
